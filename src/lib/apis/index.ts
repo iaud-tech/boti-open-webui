@@ -8,17 +8,26 @@ import { toast } from 'svelte-sonner';
 export const getModels = async (
 	token: string = '',
 	connections: object | null = null,
-	base: boolean = false
+	base: boolean = false,
+	refresh: boolean = false
 ) => {
+	const searchParams = new URLSearchParams();
+	if (refresh) {
+		searchParams.append('refresh', 'true');
+	}
+
 	let error = null;
-	const res = await fetch(`${WEBUI_BASE_URL}/api/models${base ? '/base' : ''}`, {
-		method: 'GET',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
+	const res = await fetch(
+		`${WEBUI_BASE_URL}/api/models${base ? '/base' : ''}?${searchParams.toString()}`,
+		{
+			method: 'GET',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json',
+				...(token && { authorization: `Bearer ${token}` })
+			}
 		}
-	})
+	)
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();
 			return res.json();
@@ -338,25 +347,20 @@ export const getToolServerData = async (token: string, url: string) => {
 	return data;
 };
 
-export const getToolServersData = async (i18n, servers: object[]) => {
+export const getToolServersData = async (servers: object[]) => {
 	return (
 		await Promise.all(
 			servers
 				.filter((server) => server?.config?.enable)
 				.map(async (server) => {
+					let error = null;
 					const data = await getToolServerData(
 						(server?.auth_type ?? 'bearer') === 'bearer' ? server?.key : localStorage.token,
 						(server?.path ?? '').includes('://')
 							? server?.path
 							: `${server?.url}${(server?.path ?? '').startsWith('/') ? '' : '/'}${server?.path}`
 					).catch((err) => {
-						toast.error(
-							i18n.t(`Failed to connect to {{URL}} OpenAPI tool server`, {
-								URL: (server?.path ?? '').includes('://')
-									? server?.path
-									: `${server?.url}${(server?.path ?? '').startsWith('/') ? '' : '/'}${server?.path}`
-							})
-						);
+						error = err;
 						return null;
 					});
 
@@ -368,6 +372,13 @@ export const getToolServersData = async (i18n, servers: object[]) => {
 							info: info,
 							specs: specs
 						};
+					} else if (error) {
+						return {
+							error,
+							url: server?.url
+						};
+					} else {
+						return null;
 					}
 				})
 		)
@@ -456,7 +467,7 @@ export const executeToolServer = async (
 			...(token && { authorization: `Bearer ${token}` })
 		};
 
-		let requestOptions: RequestInit = {
+		const requestOptions: RequestInit = {
 			method: httpMethod.toUpperCase(),
 			headers
 		};
@@ -471,7 +482,14 @@ export const executeToolServer = async (
 			throw new Error(`HTTP error! Status: ${res.status}. Message: ${resText}`);
 		}
 
-		return await res.json();
+		let responseData;
+		try {
+			responseData = await res.json();
+		} catch (err) {
+			responseData = await res.text();
+		}
+
+		return responseData;
 	} catch (err: any) {
 		error = err.message;
 		console.error('API Request Error:', error);
@@ -612,6 +630,78 @@ export const generateTitle = async (
 	}
 };
 
+export const generateFollowUps = async (
+	token: string = '',
+	model: string,
+	messages: string,
+	chat_id?: string
+) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_BASE_URL}/api/v1/tasks/follow_ups/completions`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify({
+			model: model,
+			messages: messages,
+			...(chat_id && { chat_id: chat_id })
+		})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			if ('detail' in err) {
+				error = err.detail;
+			}
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	try {
+		// Step 1: Safely extract the response string
+		const response = res?.choices[0]?.message?.content ?? '';
+
+		// Step 2: Attempt to fix common JSON format issues like single quotes
+		const sanitizedResponse = response.replace(/['‘’`]/g, '"'); // Convert single quotes to double quotes for valid JSON
+
+		// Step 3: Find the relevant JSON block within the response
+		const jsonStartIndex = sanitizedResponse.indexOf('{');
+		const jsonEndIndex = sanitizedResponse.lastIndexOf('}');
+
+		// Step 4: Check if we found a valid JSON block (with both `{` and `}`)
+		if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
+			const jsonResponse = sanitizedResponse.substring(jsonStartIndex, jsonEndIndex + 1);
+
+			// Step 5: Parse the JSON block
+			const parsed = JSON.parse(jsonResponse);
+
+			// Step 6: If there's a "follow_ups" key, return the follow_ups array; otherwise, return an empty array
+			if (parsed && parsed.follow_ups) {
+				return Array.isArray(parsed.follow_ups) ? parsed.follow_ups : [];
+			} else {
+				return [];
+			}
+		}
+
+		// If no valid JSON block found, return an empty array
+		return [];
+	} catch (e) {
+		// Catch and safely return empty array on any parsing errors
+		console.error('Failed to parse response: ', e);
+		return [];
+	}
+};
+
 export const generateTags = async (
 	token: string = '',
 	model: string,
@@ -737,7 +827,7 @@ export const generateQueries = async (
 	model: string,
 	messages: object[],
 	prompt: string,
-	type?: string = 'web_search'
+	type: string = 'web_search'
 ) => {
 	let error = null;
 
@@ -933,7 +1023,7 @@ export const getPipelinesList = async (token: string = '') => {
 		throw error;
 	}
 
-	let pipelines = res?.data ?? [];
+	const pipelines = res?.data ?? [];
 	return pipelines;
 };
 
@@ -1076,7 +1166,7 @@ export const getPipelines = async (token: string, urlIdx?: string) => {
 		throw error;
 	}
 
-	let pipelines = res?.data ?? [];
+	const pipelines = res?.data ?? [];
 	return pipelines;
 };
 
@@ -1189,6 +1279,33 @@ export const updatePipelineValves = async (
 			} else {
 				error = err;
 			}
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const getUsage = async (token: string = '') => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_BASE_URL}/api/usage`, {
+		method: 'GET',
+		headers: {
+			'Content-Type': 'application/json',
+			...(token && { Authorization: `Bearer ${token}` })
+		}
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			error = err;
 			return null;
 		});
 
@@ -1488,6 +1605,7 @@ export interface ModelConfig {
 }
 
 export interface ModelMeta {
+	toolIds: never[];
 	description?: string;
 	capabilities?: object;
 	profile_image_url?: string;

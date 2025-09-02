@@ -28,8 +28,13 @@
 	export let top = true;
 	export let attributes = {};
 
+	export let done = true;
+
 	export let save = false;
 	export let preview = false;
+
+	export let editCodeBlock = true;
+	export let topPadding = false;
 
 	export let onSave: Function = () => {};
 	export let onUpdate: Function = () => {};
@@ -85,7 +90,12 @@
 		<hr class=" border-gray-100 dark:border-gray-850" />
 	{:else if token.type === 'heading'}
 		<svelte:element this={headerComponent(token.depth)} dir="auto">
-			<MarkdownInlineTokens id={`${id}-${tokenIdx}-h`} tokens={token.tokens} {onSourceClick} />
+			<MarkdownInlineTokens
+				id={`${id}-${tokenIdx}-h`}
+				tokens={token.tokens}
+				{done}
+				{onSourceClick}
+			/>
 		</svelte:element>
 	{:else if token.type === 'code'}
 		{#if token.raw.includes('```')}
@@ -98,6 +108,8 @@
 				{attributes}
 				{save}
 				{preview}
+				edit={editCodeBlock}
+				stickyButtonsClassName={topPadding ? 'top-8' : 'top-0'}
 				onSave={(value) => {
 					onSave({
 						raw: token.raw,
@@ -132,6 +144,7 @@
 											<MarkdownInlineTokens
 												id={`${id}-${tokenIdx}-header-${headerIdx}`}
 												tokens={header.tokens}
+												{done}
 												{onSourceClick}
 											/>
 										</div>
@@ -146,12 +159,13 @@
 								{#each row ?? [] as cell, cellIdx}
 									<td
 										class="px-3! py-1.5! text-gray-900 dark:text-white w-max border border-gray-100 dark:border-gray-850"
-										style={token.align[cellIdx] ? '' : `text-align: ${token.align[cellIdx]}`}
+										style={token.align[cellIdx] ? `text-align: ${token.align[cellIdx]}` : ''}
 									>
 										<div class="break-normal">
 											<MarkdownInlineTokens
 												id={`${id}-${tokenIdx}-row-${rowIdx}-${cellIdx}`}
 												tokens={cell.tokens}
+												{done}
 												{onSourceClick}
 											/>
 										</div>
@@ -183,7 +197,14 @@
 			<AlertRenderer {token} {alert} />
 		{:else}
 			<blockquote dir="auto">
-				<svelte:self id={`${id}-${tokenIdx}`} tokens={token.tokens} {onTaskClick} {onSourceClick} />
+				<svelte:self
+					id={`${id}-${tokenIdx}`}
+					tokens={token.tokens}
+					{done}
+					{editCodeBlock}
+					{onTaskClick}
+					{onSourceClick}
+				/>
 			</blockquote>
 		{/if}
 	{:else if token.type === 'list'}
@@ -213,6 +234,8 @@
 							id={`${id}-${tokenIdx}-${itemIdx}`}
 							tokens={item.tokens}
 							top={token.loose}
+							{done}
+							{editCodeBlock}
 							{onTaskClick}
 							{onSourceClick}
 						/>
@@ -220,12 +243,12 @@
 				{/each}
 			</ol>
 		{:else}
-			<ul dir="auto">
+			<ul dir="auto" class="">
 				{#each token.items as item, itemIdx}
-					<li class="text-start">
+					<li class="text-start {item?.task ? 'flex -translate-x-6.5 gap-3 ' : ''}">
 						{#if item?.task}
 							<input
-								class=" translate-y-[1px] -translate-x-1"
+								class=""
 								type="checkbox"
 								checked={item.checked}
 								on:change={(e) => {
@@ -239,15 +262,29 @@
 									});
 								}}
 							/>
-						{/if}
 
-						<svelte:self
-							id={`${id}-${tokenIdx}-${itemIdx}`}
-							tokens={item.tokens}
-							top={token.loose}
-							{onTaskClick}
-							{onSourceClick}
-						/>
+							<div>
+								<svelte:self
+									id={`${id}-${tokenIdx}-${itemIdx}`}
+									tokens={item.tokens}
+									top={token.loose}
+									{done}
+									{editCodeBlock}
+									{onTaskClick}
+									{onSourceClick}
+								/>
+							</div>
+						{:else}
+							<svelte:self
+								id={`${id}-${tokenIdx}-${itemIdx}`}
+								tokens={item.tokens}
+								top={token.loose}
+								{done}
+								{editCodeBlock}
+								{onTaskClick}
+								{onSourceClick}
+							/>
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -265,6 +302,8 @@
 					id={`${id}-${tokenIdx}-d`}
 					tokens={marked.lexer(token.text)}
 					attributes={token?.attributes}
+					{done}
+					{editCodeBlock}
 					{onTaskClick}
 					{onSourceClick}
 				/>
@@ -285,6 +324,7 @@
 			<MarkdownInlineTokens
 				id={`${id}-${tokenIdx}-p`}
 				tokens={token.tokens ?? []}
+				{done}
 				{onSourceClick}
 			/>
 		</p>
@@ -292,7 +332,12 @@
 		{#if top}
 			<p>
 				{#if token.tokens}
-					<MarkdownInlineTokens id={`${id}-${tokenIdx}-t`} tokens={token.tokens} {onSourceClick} />
+					<MarkdownInlineTokens
+						id={`${id}-${tokenIdx}-t`}
+						tokens={token.tokens}
+						{done}
+						{onSourceClick}
+					/>
 				{:else}
 					{unescapeHtml(token.text)}
 				{/if}
@@ -301,6 +346,7 @@
 			<MarkdownInlineTokens
 				id={`${id}-${tokenIdx}-p`}
 				tokens={token.tokens ?? []}
+				{done}
 				{onSourceClick}
 			/>
 		{:else}

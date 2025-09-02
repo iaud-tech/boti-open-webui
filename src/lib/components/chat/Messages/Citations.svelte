@@ -4,6 +4,7 @@
 	import Collapsible from '$lib/components/common/Collapsible.svelte';
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
+	import { mobile } from '$lib/stores';
 
 	const i18n = getContext('i18n');
 
@@ -17,6 +18,13 @@
 	let showCitationModal = false;
 	let selectedCitation: any = null;
 	let isCollapsibleOpen = false;
+
+	export const showSourceModal = (sourceIdx) => {
+		if (citations[sourceIdx]) {
+			selectedCitation = citations[sourceIdx];
+			showCitationModal = true;
+		}
+	};
 
 	function calculateShowRelevance(sources: any[]) {
 		const distances = sources.flatMap((citation) => citation.distances ?? []);
@@ -43,15 +51,14 @@
 	}
 
 	$: {
-		console.log('sources', sources);
 		citations = sources.reduce((acc, source) => {
 			if (Object.keys(source).length === 0) {
 				return acc;
 			}
 
-			source.document.forEach((document, index) => {
-				const metadata = source.metadata?.[index];
-				const distance = source.distances?.[index];
+			source?.document?.forEach((document, index) => {
+				const metadata = source?.metadata?.[index];
+				const distance = source?.distances?.[index];
 
 				// Within the same citation there could be multiple documents
 				const id = metadata?.source ?? source?.source?.id ?? 'N/A';
@@ -81,6 +88,7 @@
 					});
 				}
 			});
+
 			return acc;
 		}, []);
 		console.log('citations', citations);
@@ -149,7 +157,7 @@
 						>
 						<div class="flex items-center overflow-auto scrollbar-none w-full max-w-full flex-1">
 							<div class="flex text-xs font-medium items-center">
-								{#each citations.slice(0, 2) as citation, idx}
+								{#each citations.slice(0, $mobile ? 1 : 2) as citation, idx}
 									<button
 										class="no-toggle outline-hidden flex dark:text-gray-300 p-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 transition rounded-xl max-w-96"
 										on:click={() => {
@@ -174,7 +182,7 @@
 						</div>
 						<div class="flex items-center gap-1 whitespace-nowrap shrink-0">
 							<span class="hidden sm:inline">{$i18n.t('and')}</span>
-							{citations.length - 2}
+							{citations.length - ($mobile ? 1 : 2)}
 							<span>{$i18n.t('more')}</span>
 						</div>
 					</div>
@@ -188,9 +196,8 @@
 				</div>
 				<div slot="content">
 					<div class="flex text-xs font-medium flex-wrap">
-						{#each citations as citation, idx}
+						{#each citations.slice($mobile ? 1 : 2) as citation, idx}
 							<button
-								id={`source-${id}-${idx + 1}`}
 								class="no-toggle outline-hidden flex dark:text-gray-300 p-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 transition rounded-xl max-w-96"
 								on:click={() => {
 									showCitationModal = true;
@@ -199,7 +206,7 @@
 							>
 								{#if citations.every((c) => c.distances !== undefined)}
 									<div class="bg-gray-50 dark:bg-gray-800 rounded-full size-4">
-										{idx + 1}
+										{idx + 3}
 									</div>
 								{/if}
 								<div class="flex-1 mx-1 truncate">

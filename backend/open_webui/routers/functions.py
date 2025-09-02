@@ -12,7 +12,11 @@ from open_webui.models.functions import (
     FunctionResponse,
     Functions,
 )
-from open_webui.utils.plugin import load_function_module_by_id, replace_imports
+from open_webui.utils.plugin import (
+    load_function_module_by_id,
+    replace_imports,
+    get_function_module_from_cache,
+)
 from open_webui.config import CACHE_DIR
 from open_webui.constants import ERROR_MESSAGES
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -101,7 +105,7 @@ async def load_function_from_url(
     )
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(trust_env=True) as session:
             async with session.get(
                 url, headers={"Content-Type": "application/json"}
             ) as resp:
@@ -127,15 +131,29 @@ async def load_function_from_url(
 ############################
 
 
-class SyncFunctionsForm(FunctionForm):
+class SyncFunctionsForm(BaseModel):
     functions: list[FunctionModel] = []
 
 
-@router.post("/sync", response_model=Optional[FunctionModel])
+@router.post("/sync", response_model=list[FunctionModel])
 async def sync_functions(
     request: Request, form_data: SyncFunctionsForm, user=Depends(get_admin_user)
 ):
-    return Functions.sync_functions(user.id, form_data.functions)
+    try:
+        for function in form_data.functions:
+            function.content = replace_imports(function.content)
+            function_module, function_type, frontmatter = load_function_module_by_id(
+                function.id,
+                content=function.content,
+            )
+
+        return Functions.sync_functions(user.id, form_data.functions)
+    except Exception as e:
+        log.exception(f"Failed to load a function: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.DEFAULT(e),
+        )
 
 
 ############################
@@ -358,8 +376,9 @@ async def get_function_valves_spec_by_id(
 ):
     function = Functions.get_function_by_id(id)
     if function:
-        function_module, function_type, frontmatter = load_function_module_by_id(id)
-        request.app.state.FUNCTIONS[id] = function_module
+        function_module, function_type, frontmatter = get_function_module_from_cache(
+            request, id
+        )
 
         if hasattr(function_module, "Valves"):
             Valves = function_module.Valves
@@ -383,8 +402,9 @@ async def update_function_valves_by_id(
 ):
     function = Functions.get_function_by_id(id)
     if function:
-        function_module, function_type, frontmatter = load_function_module_by_id(id)
-        request.app.state.FUNCTIONS[id] = function_module
+        function_module, function_type, frontmatter = get_function_module_from_cache(
+            request, id
+        )
 
         if hasattr(function_module, "Valves"):
             Valves = function_module.Valves
@@ -443,8 +463,9 @@ async def get_function_user_valves_spec_by_id(
 ):
     function = Functions.get_function_by_id(id)
     if function:
-        function_module, function_type, frontmatter = load_function_module_by_id(id)
-        request.app.state.FUNCTIONS[id] = function_module
+        function_module, function_type, frontmatter = get_function_module_from_cache(
+            request, id
+        )
 
         if hasattr(function_module, "UserValves"):
             UserValves = function_module.UserValves
@@ -464,8 +485,9 @@ async def update_function_user_valves_by_id(
     function = Functions.get_function_by_id(id)
 
     if function:
-        function_module, function_type, frontmatter = load_function_module_by_id(id)
-        request.app.state.FUNCTIONS[id] = function_module
+        function_module, function_type, frontmatter = get_function_module_from_cache(
+            request, id
+        )
 
         if hasattr(function_module, "UserValves"):
             UserValves = function_module.UserValves

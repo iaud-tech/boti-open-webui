@@ -10,9 +10,13 @@
 
 	export let id = '';
 	export let content;
+	export let done = true;
 	export let model = null;
 	export let save = false;
 	export let preview = false;
+
+	export let editCodeBlock = true;
+	export let topPadding = false;
 
 	export let sourceIds = [];
 
@@ -27,7 +31,8 @@
 	let tokens = [];
 
 	const options = {
-		throwOnError: false
+		throwOnError: false,
+		breaks: true
 	};
 
 	marked.use(markedKatexExtension(options));
@@ -46,8 +51,11 @@
 	<MarkdownTokens
 		{tokens}
 		{id}
+		{done}
 		{save}
 		{preview}
+		{editCodeBlock}
+		{topPadding}
 		{onTaskClick}
 		{onSourceClick}
 		{onSave}

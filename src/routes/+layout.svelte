@@ -16,8 +16,6 @@
 		WEBUI_NAME,
 		mobile,
 		socket,
-		activeUserIds,
-		USAGE_POOL,
 		chatId,
 		chats,
 		currentChatPage,
@@ -51,6 +49,7 @@
 
 	import { beforeNavigate } from '$app/navigation';
 	import { updated } from '$app/state';
+	import Spinner from '$lib/components/common/Spinner.svelte';
 
 	// handle frontend updates (https://svelte.dev/docs/kit/configuration#version)
 	beforeNavigate(({ willUnload, to }) => {
@@ -65,6 +64,8 @@
 
 	let loaded = false;
 	let tokenTimer = null;
+
+	let showRefresh = false;
 
 	const BREAKPOINT = 768;
 
@@ -87,6 +88,12 @@
 
 		_socket.on('connect', () => {
 			console.log('connected', _socket.id);
+			if (localStorage.getItem('token')) {
+				// Emit user-join event with auth token
+				_socket.emit('user-join', { auth: { token: localStorage.token } });
+			} else {
+				console.warn('No token found in localStorage, user-join event not emitted');
+			}
 		});
 
 		_socket.on('reconnect_attempt', (attempt) => {
@@ -102,16 +109,6 @@
 			if (details) {
 				console.log('Additional details:', details);
 			}
-		});
-
-		_socket.on('user-list', (data) => {
-			console.log('user-list', data);
-			activeUserIds.set(data.user_ids);
-		});
-
-		_socket.on('usage', (data) => {
-			console.log('usage', data);
-			USAGE_POOL.set(data['models']);
 		});
 	};
 
@@ -474,6 +471,36 @@
 	};
 
 	onMount(async () => {
+		let touchstartY = 0;
+
+		function isNavOrDescendant(el) {
+			const nav = document.querySelector('nav'); // change selector if needed
+			return nav && (el === nav || nav.contains(el));
+		}
+
+		document.addEventListener('touchstart', (e) => {
+			if (!isNavOrDescendant(e.target)) return;
+			touchstartY = e.touches[0].clientY;
+		});
+
+		document.addEventListener('touchmove', (e) => {
+			if (!isNavOrDescendant(e.target)) return;
+			const touchY = e.touches[0].clientY;
+			const touchDiff = touchY - touchstartY;
+			if (touchDiff > 50 && window.scrollY === 0) {
+				showRefresh = true;
+				e.preventDefault();
+			}
+		});
+
+		document.addEventListener('touchend', (e) => {
+			if (!isNavOrDescendant(e.target)) return;
+			if (showRefresh) {
+				showRefresh = false;
+				location.reload();
+			}
+		});
+
 		if (typeof window !== 'undefined' && window.applyTheme) {
 			window.applyTheme();
 		}
@@ -594,9 +621,6 @@
 					});
 
 					if (sessionUser) {
-						// Save Session User to Store
-						$socket.emit('user-join', { auth: { token: sessionUser.token } });
-
 						await user.set(sessionUser);
 						await config.set(await getBackendConfig());
 					} else {
@@ -658,12 +682,13 @@
 <svelte:head>
 	<title>{$WEBUI_NAME}</title>
 	<link crossorigin="anonymous" rel="icon" href="{WEBUI_BASE_URL}/static/favicon.png" />
-
-	<!-- rosepine themes have been disabled as it's not up to date with our latest version. -->
-	<!-- feel free to make a PR to fix if anyone wants to see it return -->
-	<!-- <link rel="stylesheet" type="text/css" href="/themes/rosepine.css" />
-	<link rel="stylesheet" type="text/css" href="/themes/rosepine-dawn.css" /> -->
 </svelte:head>
+
+{#if showRefresh}
+	<div class=" py-5">
+		<Spinner className="size-5" />
+	</div>
+{/if}
 
 {#if loaded}
 	{#if $isApp}

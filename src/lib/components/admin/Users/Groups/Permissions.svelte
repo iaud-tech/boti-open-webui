@@ -21,8 +21,15 @@
 		},
 		chat: {
 			controls: true,
+			valves: true,
+			system_prompt: true,
+			params: true,
 			file_upload: true,
 			delete: true,
+			delete_message: true,
+			continue_response: true,
+			regenerate_response: true,
+			rate_response: true,
 			edit: true,
 			share: true,
 			export: true,
@@ -155,7 +162,7 @@
 				<select
 					class="w-full bg-transparent outline-hidden py-0.5 text-sm"
 					bind:value={permissions.model.default_id}
-					placeholder="Select a model"
+					placeholder={$i18n.t('Select a model')}
 				>
 					<option value="" disabled selected>{$i18n.t('Select a model')}</option>
 					{#each permissions.model.filter ? $models.filter( (model) => filterModelIds.includes(model.id) ) : $models.filter((model) => model.id) as model}
@@ -263,6 +270,40 @@
 			<Switch bind:state={permissions.chat.controls} />
 		</div>
 
+		{#if permissions.chat.controls}
+			<div class="  flex w-full justify-between my-2 pr-2">
+				<div class=" self-center text-xs font-medium">
+					{$i18n.t('Allow Chat Valves')}
+				</div>
+
+				<Switch bind:state={permissions.chat.valves} />
+			</div>
+
+			<div class="  flex w-full justify-between my-2 pr-2">
+				<div class=" self-center text-xs font-medium">
+					{$i18n.t('Allow Chat System Prompt')}
+				</div>
+
+				<Switch bind:state={permissions.chat.system_prompt} />
+			</div>
+
+			<div class="  flex w-full justify-between my-2 pr-2">
+				<div class=" self-center text-xs font-medium">
+					{$i18n.t('Allow Chat Params')}
+				</div>
+
+				<Switch bind:state={permissions.chat.params} />
+			</div>
+		{/if}
+
+		<div class="  flex w-full justify-between my-2 pr-2">
+			<div class=" self-center text-xs font-medium">
+				{$i18n.t('Allow Chat Edit')}
+			</div>
+
+			<Switch bind:state={permissions.chat.edit} />
+		</div>
+
 		<div class="  flex w-full justify-between my-2 pr-2">
 			<div class=" self-center text-xs font-medium">
 				{$i18n.t('Allow Chat Delete')}
@@ -273,10 +314,34 @@
 
 		<div class="  flex w-full justify-between my-2 pr-2">
 			<div class=" self-center text-xs font-medium">
-				{$i18n.t('Allow Chat Edit')}
+				{$i18n.t('Allow Delete Messages')}
 			</div>
 
-			<Switch bind:state={permissions.chat.edit} />
+			<Switch bind:state={permissions.chat.delete_message} />
+		</div>
+
+		<div class="  flex w-full justify-between my-2 pr-2">
+			<div class=" self-center text-xs font-medium">
+				{$i18n.t('Allow Continue Response')}
+			</div>
+
+			<Switch bind:state={permissions.chat.continue_response} />
+		</div>
+
+		<div class="  flex w-full justify-between my-2 pr-2">
+			<div class=" self-center text-xs font-medium">
+				{$i18n.t('Allow Regenerate Response')}
+			</div>
+
+			<Switch bind:state={permissions.chat.regenerate_response} />
+		</div>
+
+		<div class="  flex w-full justify-between my-2 pr-2">
+			<div class=" self-center text-xs font-medium">
+				{$i18n.t('Allow Rate Response')}
+			</div>
+
+			<Switch bind:state={permissions.chat.rate_response} />
 		</div>
 
 		<div class="  flex w-full justify-between my-2 pr-2">
