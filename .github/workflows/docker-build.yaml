@@ -32,16 +32,28 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
-      - name: Free some disk space
+      - name: Aggressive disk cleanup
         run: |
-          echo "Before cleanup:"
+          echo "== Before cleanup =="
           df -h
-
-          docker system prune -af || true
+      
+          # Remove huge preinstalled toolchains you don't use in this workflow
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/hostedtoolcache || true
+      
+          # Docker & Buildx / BuildKit cleanup
+          docker system prune -af --volumes || true
+          docker builder prune -af || true
+          sudo rm -rf /var/lib/buildkit || true
+      
+          # Temp dirs
           sudo rm -rf /tmp/* || true
-
-          echo "After cleanup:"
+      
+          echo "== After cleanup =="
           df -h
+
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
       - name: Set repository and image name to lowercase
@@ -141,15 +153,26 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
-      - name: Free some disk space
+      - name: Aggressive disk cleanup
         run: |
-          echo "Before cleanup:"
+          echo "== Before cleanup =="
           df -h
-
-          docker system prune -af || true
+      
+          # Remove huge preinstalled toolchains you don't use in this workflow
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/hostedtoolcache || true
+      
+          # Docker & Buildx / BuildKit cleanup
+          docker system prune -af --volumes || true
+          docker builder prune -af || true
+          sudo rm -rf /var/lib/buildkit || true
+      
+          # Temp dirs
           sudo rm -rf /tmp/* || true
-
-          echo "After cleanup:"
+      
+          echo "== After cleanup =="
           df -h
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
@@ -253,15 +276,26 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
-      - name: Free some disk space
+      - name: Aggressive disk cleanup
         run: |
-          echo "Before cleanup:"
+          echo "== Before cleanup =="
           df -h
-
-          docker system prune -af || true
+      
+          # Remove huge preinstalled toolchains you don't use in this workflow
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/hostedtoolcache || true
+      
+          # Docker & Buildx / BuildKit cleanup
+          docker system prune -af --volumes || true
+          docker builder prune -af || true
+          sudo rm -rf /var/lib/buildkit || true
+      
+          # Temp dirs
           sudo rm -rf /tmp/* || true
-
-          echo "After cleanup:"
+      
+          echo "== After cleanup =="
           df -h
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
@@ -366,15 +400,26 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
-      - name: Free some disk space
+      - name: Aggressive disk cleanup
         run: |
-          echo "Before cleanup:"
+          echo "== Before cleanup =="
           df -h
-
-          docker system prune -af || true
+      
+          # Remove huge preinstalled toolchains you don't use in this workflow
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/hostedtoolcache || true
+      
+          # Docker & Buildx / BuildKit cleanup
+          docker system prune -af --volumes || true
+          docker builder prune -af || true
+          sudo rm -rf /var/lib/buildkit || true
+      
+          # Temp dirs
           sudo rm -rf /tmp/* || true
-
-          echo "After cleanup:"
+      
+          echo "== After cleanup =="
           df -h
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
@@ -478,15 +523,26 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
-      - name: Free some disk space
+      - name: Aggressive disk cleanup
         run: |
-          echo "Before cleanup:"
+          echo "== Before cleanup =="
           df -h
-
-          docker system prune -af || true
+      
+          # Remove huge preinstalled toolchains you don't use in this workflow
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/hostedtoolcache || true
+      
+          # Docker & Buildx / BuildKit cleanup
+          docker system prune -af --volumes || true
+          docker builder prune -af || true
+          sudo rm -rf /var/lib/buildkit || true
+      
+          # Temp dirs
           sudo rm -rf /tmp/* || true
-
-          echo "After cleanup:"
+      
+          echo "== After cleanup =="
           df -h
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
