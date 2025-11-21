@@ -32,6 +32,16 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
+      - name: Free some disk space
+        run: |
+          echo "Before cleanup:"
+          df -h
+
+          docker system prune -af || true
+          sudo rm -rf /tmp/* || true
+
+          echo "After cleanup:"
+          df -h
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
       - name: Set repository and image name to lowercase
@@ -131,6 +141,16 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
+      - name: Free some disk space
+        run: |
+          echo "Before cleanup:"
+          df -h
+
+          docker system prune -af || true
+          sudo rm -rf /tmp/* || true
+
+          echo "After cleanup:"
+          df -h
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
       - name: Set repository and image name to lowercase
@@ -233,6 +253,16 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
+      - name: Free some disk space
+        run: |
+          echo "Before cleanup:"
+          df -h
+
+          docker system prune -af || true
+          sudo rm -rf /tmp/* || true
+
+          echo "After cleanup:"
+          df -h
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
       - name: Set repository and image name to lowercase
@@ -336,6 +366,16 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
+      - name: Free some disk space
+        run: |
+          echo "Before cleanup:"
+          df -h
+
+          docker system prune -af || true
+          sudo rm -rf /tmp/* || true
+
+          echo "After cleanup:"
+          df -h
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
       - name: Set repository and image name to lowercase
@@ -438,6 +478,16 @@ jobs:
             runner: ubuntu-24.04-arm
 
     steps:
+      - name: Free some disk space
+        run: |
+          echo "Before cleanup:"
+          df -h
+
+          docker system prune -af || true
+          sudo rm -rf /tmp/* || true
+
+          echo "After cleanup:"
+          df -h
       # GitHub Packages requires the entire repository name to be in lowercase
       # although the repository owner has a lowercase username, this prevents some people from running actions after forking
       - name: Set repository and image name to lowercase
