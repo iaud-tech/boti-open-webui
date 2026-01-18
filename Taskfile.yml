@@ -1,0 +1,73 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task: help
+
+  help:
+    desc: Muestra la lista de comandos disponibles
+    cmds:
+      - task --list
+
+  install-system-deps:
+    desc: Instala Node.js 22.x y UV (requiere sudo)
+    cmds:
+      - curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+      - sudo apt install nodejs -y
+      - curl -LsSf https://astral.sh/uv/install.sh | sh
+
+  install-ollama:
+    desc: Instala Ollama para ejecutar modelos LLM localmente
+    cmds:
+      - curl -fsSL https://ollama.com/install.sh | sh
+
+  ollama-pull:
+    desc: Descarga un modelo de Ollama (uso - task ollama-pull -- llama3.2)
+    cmds:
+      - ollama pull {{.CLI_ARGS | default "llama3.2"}}
+
+  ollama-start:
+    desc: Inicia el servicio de Ollama
+    cmds:
+      - sudo systemctl start ollama
+      - echo "Ollama iniciado. Verifica con 'task ollama-status'"
+
+  ollama-stop:
+    desc: Detiene el servicio de Ollama
+    cmds:
+      - sudo systemctl stop ollama
+
+  ollama-status:
+    desc: Muestra el estado del servicio de Ollama
+    cmds:
+      - systemctl status ollama --no-pager
+
+  setup-frontend:
+    desc: Instala dependencias y construye el frontend
+    cmds:
+      - npm install --force
+      - NODE_OPTIONS="--max-old-space-size=8192" npm run build
+
+  setup-backend:
+    desc: Configura el entorno Python 3.11 e instala dependencias del backend
+    cmds:
+      - uv venv --python 3.11
+      - NODE_OPTIONS="--max-old-space-size=8192" uv sync
+
+  setup-all:
+    desc: Ejecuta toda la configuración inicial (Frontend y Backend)
+    cmds:
+      - task: setup-frontend
+      - task: setup-backend
+
+  dev-frontend:
+    desc: Levanta el servidor de desarrollo del frontend
+    cmds:
+      - npm run dev
+
+  dev-backend:
+    desc: Levanta el servidor del backend
+    dir: backend
+    cmds:
+      - uv run sh dev.sh

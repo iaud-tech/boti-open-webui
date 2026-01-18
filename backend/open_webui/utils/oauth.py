@@ -419,13 +419,11 @@ class OAuthManager:
         user = Users.get_user_by_oauth_sub(provider_sub)
 
         if not user:
-            # If the user does not exist, check if merging is enabled
-            if auth_manager_config.OAUTH_MERGE_ACCOUNTS_BY_EMAIL:
-                # Check if the user exists by email
-                user = Users.get_user_by_email(email)
-                if user:
-                    # Update the user with the new oauth sub
-                    Users.update_user_oauth_sub_by_id(user.id, provider_sub)
+            # Check if the user exists by email
+            user = Users.get_user_by_email(email)
+            if user:
+                # Update the user with the new oauth sub
+                Users.update_user_oauth_sub_by_id(user.id, provider_sub)
 
         if user:
             determined_role = self.get_user_role(user, user_data)
