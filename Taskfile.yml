@@ -104,3 +104,16 @@ tasks:
     dir: backend
     cmds:
       - uv run sh dev.sh
+
+precommit:
+    desc:  Formateo, Linting, Build y Checks. Necesario antes de cada commit.
+    cmds:
+      
+      - npm run format:backend
+      - npm ci
+      - npm run format
+      - task: setup-frontend
+      - npm run i18n:parse
+
+      - echo "Estado final de los archivos:"
+      - git status

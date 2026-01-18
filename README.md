@@ -146,6 +146,17 @@ You usually work in "dev mode", but sometimes you need to generate a production 
 `task setup-frontend`: Frontend Build. Installs npm packages and compiles the static production files (build folder).
 `task setup-backend`: Backend Sync. Updates the Python environment (uv sync).
 
+### 6. Pre-commit Checks (Avoid CI Failures)
+
+Before pushing any changes to GitHub, you **must** run the pre-commit task. This command executes linters, formatters, and builds the frontend to ensure code quality.
+
+**Why is this necessary?**
+If you skip this step, the **GitHub Actions** (CI/CD pipeline) will fail due to formatting errors or build issues, and you will have to fix them and push again.
+
+```bash
+task pre-commit
+```
+
 ## How to Install 🚀
 
 ### Installation via Python pip 🐍
