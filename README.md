@@ -82,6 +82,80 @@ Want to learn more about Open WebUI's features? Check out our [Open WebUI docume
 
 We are incredibly grateful for the generous support of our sponsors. Their contributions help us to maintain and improve our project, ensuring we can continue to deliver quality work to our community. Thank you!
 
+## How to run local development environment
+
+**[Task](https://taskfile.dev/)** is used to automate the environment setup and development workflows.
+
+### 1. Prerequisites
+
+Before starting, ensure you have `curl` and `git` installed. Then, install the **Task** runner into your local bin folder:
+
+```bash
+sh -c "$(curl --location [https://taskfile.dev/install.sh](https://taskfile.dev/install.sh))" -- -d -b ~/.local/bin
+```
+
+### 2. First-Time Installation
+
+There is a setup command that installs all system dependencies (Node.js, Python/UV), builds the project, and optionally sets up Ollama with a local LLM.
+
+Run this command in your terminal:
+
+```bash
+task first-time-setup
+```
+
+**What this command does:**
+
+- **System Deps:** Installs Node.js 22.x, `zstd`, and `uv` (requires `sudo` password).
+- **Ollama (Interactive):** Asks if you want to install Ollama and download a model (default: `llama3.2`).
+- **Build:** Installs needed packages and sets up the backend and frontend.
+
+### 3. Running the Application
+
+To start the development environment, you will need two terminal sessions:
+
+**Terminal 1: Start Backend**
+
+```bash
+task dev-backend
+```
+
+**Terminal 2: Start Frontend**
+
+```bash
+task dev-frontend
+```
+
+Once both are running, open your browser at: `http://localhost:5173`
+
+### 4. Managing Local AI Models (Ollama)
+
+If you are using local models, use these commands to manage the service:
+
+`task ollama-start`: Starts the Ollama service (Required to use the AI).
+`task ollama-stop`: Stops the Ollama service.
+`task ollama-status`: Checks if the service is running.
+`task ollama-pull -- <model>`: Downloads a specific model. Example: `task ollama-pull -- llama3.2`
+
+### 5. Building for Production & Updating
+
+You usually work in "dev mode", but sometimes you need to generate a production build (static files) or update dependencies after pulling changes (git pull). Use these commands:
+
+`task setup-all`: Full Rebuild. Updates all dependencies (Python/Node) and builds the project. Run this if the app breaks after a git pull.
+`task setup-frontend`: Frontend Build. Installs npm packages and compiles the static production files (build folder).
+`task setup-backend`: Backend Sync. Updates the Python environment (uv sync).
+
+### 6. Pre-commit Checks (Avoid CI Failures)
+
+Before pushing any changes to GitHub, you **must** run the pre-commit task. This command executes linters, formatters, and builds the frontend to ensure code quality.
+
+**Why is this necessary?**
+If you skip this step, the **GitHub Actions** (CI/CD pipeline) will fail due to formatting errors or build issues, and you will have to fix them and push again.
+
+```bash
+task pre-commit
+```
+
 ## How to Install 🚀
 
 ### Installation via Python pip 🐍
