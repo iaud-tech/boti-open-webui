@@ -82,7 +82,6 @@ Want to learn more about Open WebUI's features? Check out our [Open WebUI docume
 
 We are incredibly grateful for the generous support of our sponsors. Their contributions help us to maintain and improve our project, ensuring we can continue to deliver quality work to our community. Thank you!
 
-
 ## How to run local development environment
 
 **[Task](https://taskfile.dev/)** is used to automate the environment setup and development workflows.
@@ -107,9 +106,9 @@ task first-time-setup
 
 **What this command does:**
 
-* **System Deps:** Installs Node.js 22.x, `zstd`, and `uv` (requires `sudo` password).
-* **Ollama (Interactive):** Asks if you want to install Ollama and download a model (default: `llama3.2`).
-* **Build:** Installs needed packages and sets up the backend and frontend.
+- **System Deps:** Installs Node.js 22.x, `zstd`, and `uv` (requires `sudo` password).
+- **Ollama (Interactive):** Asks if you want to install Ollama and download a model (default: `llama3.2`).
+- **Build:** Installs needed packages and sets up the backend and frontend.
 
 ### 3. Running the Application
 

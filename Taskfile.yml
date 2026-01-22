@@ -14,6 +14,7 @@ tasks:
       desc: EJECUTAR SOLO LA PRIMERA VEZ - Instalación completa (Sistema, Ollama opcional y App)
       interactive: true
       cmds:
+        - test -f .env || cp -RPp .env.example .env
         - task: install-system-deps
         
         - |
@@ -105,15 +106,15 @@ tasks:
     cmds:
       - uv run sh dev.sh
 
-precommit:
-    desc:  Formateo, Linting, Build y Checks. Necesario antes de cada commit.
-    cmds:
-      
-      - npm run format:backend
-      - npm ci
-      - npm run format
-      - task: setup-frontend
-      - npm run i18n:parse
+  pre-commit:
+      desc:  Formateo, Linting, Build y Checks. Necesario antes de cada commit.
+      cmds:
+        
+        - uv run npm run format:backend
+        - npm ci
+        - npm run format
+        - task: setup-frontend
+        - npm run i18n:parse
 
-      - echo "Estado final de los archivos:"
-      - git status
+        - echo "Estado final de los archivos:"
+        - git status
