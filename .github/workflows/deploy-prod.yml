@@ -73,6 +73,7 @@ jobs:
             ENABLE_OAUTH_SIGNUP=true
             GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
             GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+            OAUTH_MERGE_ACCOUNTS_BY_EMAIL=True
             WEBUI_URL=https://boti.deusto.es
             PIPELINES_API_KEY=${PIPELINES_API_KEY_PROD}
             OPEN_WEBUI_PORT=3000
