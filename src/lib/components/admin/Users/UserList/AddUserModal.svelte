@@ -3,6 +3,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onMount, getContext } from 'svelte';
 	import { addUser } from '$lib/apis/auths';
+	import { getGroups, updateGroupById } from '$lib/apis/groups';
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
@@ -77,7 +78,7 @@
 
 						if (idx > 0) {
 							if (
-								columns.length === 4 &&
+								columns.length === 5 &&
 								['admin', 'user', 'pending'].includes(columns[3].toLowerCase())
 							) {
 								const res = await addUser(
@@ -94,6 +95,46 @@
 
 								if (res) {
 									userCount = userCount + 1;
+
+									if (columns[4] && columns[4].trim() !== '') {
+										const groupNames = columns[4]
+											.split(';')
+											.map((g) => g.trim())
+											.filter((g) => g !== '');
+
+										const allGroups = await getGroups(localStorage.token).catch((error) => {
+											console.error('Error fetching groups:', error);
+											return [];
+										});
+
+										if (allGroups && Array.isArray(allGroups)) {
+											for (const groupName of groupNames) {
+												const group = allGroups.find(
+													(g) => g.name.toLowerCase() === groupName.toLowerCase()
+												);
+
+												if (group) {
+													const updatedUserIds = [...(group.user_ids || []), res.id];
+													await updateGroupById(
+														localStorage.token,
+														group.id,
+														{
+															...group,
+															user_ids: updatedUserIds
+														}
+													).catch((error) => {
+														toast.error(
+															`Row ${idx + 1}: Error adding user to group "${groupName}": ${error}`
+														);
+													});
+												} else {
+													toast.warning(
+														`Row ${idx + 1}: Group "${groupName}" not found, skipping.`
+													);
+												}
+											}
+										}
+									}
 								}
 							} else {
 								toast.error(`Row ${idx + 1}: invalid format.`);
