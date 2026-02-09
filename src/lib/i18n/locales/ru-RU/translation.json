@@ -420,7 +420,7 @@
 	"Endpoint URL": "URL-адрес конечной точки",
 	"Enforce Temporary Chat": "Принудительный временный чат",
 	"Enhance": "Улучшить",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "Убедитесь, что ваш CSV-файл включает в себя 4 столбца в следующем порядке: Имя, Электронная почта, Пароль, Роль.",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "Введите сообщение {{role}} здесь",
 	"Enter a detail about yourself for your LLMs to recall": "Введите детали о себе, чтобы LLMs могли запомнить",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "Введите заголовок для ожидаемого отображения информации о пользователе. Оставьте поле пустым для параметра по умолчанию.",

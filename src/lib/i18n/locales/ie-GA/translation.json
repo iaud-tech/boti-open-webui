@@ -420,7 +420,7 @@
 	"Endpoint URL": "",
 	"Enforce Temporary Chat": "Cuir Comhrá Sealadach i bhfeidhm",
 	"Enhance": "",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "Déan cinnte go bhfuil 4 cholún san ord seo i do chomhad CSV: Ainm, Ríomhphost, Pasfhocal, Ról.",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "Cuir isteach teachtaireacht {{role}} anseo",
 	"Enter a detail about yourself for your LLMs to recall": "Cuir isteach mionsonraí fút féin chun do LLManna a mheabhrú",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "",

@@ -420,7 +420,7 @@
 	"Endpoint URL": "Endpunkt-URL",
 	"Enforce Temporary Chat": "Temporären Chat erzwingen",
 	"Enhance": "Verbessern",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "Stellen Sie sicher, dass Ihre CSV-Datei 4 Spalten in dieser Reihenfolge enthält: Name, E-Mail, Passwort, Rolle.",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "Geben Sie die {{role}}-Nachricht hier ein",
 	"Enter a detail about yourself for your LLMs to recall": "Geben Sie ein Detail über sich selbst ein, das Ihre Sprachmodelle (LLMs) sich merken sollen",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "Geben Sie einen Titel für das Overlay 'Ausstehende Kontoaktivierung' ein. Leer lassen für Standard.",

@@ -420,7 +420,7 @@
 	"Endpoint URL": "端点 URL",
 	"Enforce Temporary Chat": "强制临时聊天",
 	"Enhance": "润色",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "确保您的 CSV 文件按以下顺序包含 4 列： 姓名、电子邮箱、密码、角色。",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "在此处输入 {{role}} 的对话内容",
 	"Enter a detail about yourself for your LLMs to recall": "输入一个关于你自己的详细信息，方便你的大语言模型记住这些内容。",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "输入用户待激活界面的标题。留空使用默认",

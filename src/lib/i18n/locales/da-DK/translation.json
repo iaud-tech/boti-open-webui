@@ -420,7 +420,7 @@
 	"Endpoint URL": "",
 	"Enforce Temporary Chat": "",
 	"Enhance": "Forbedre",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "Sørg for at din CSV-fil indeholder 4 kolonner i denne rækkefølge: Name, Email, Password, Role.",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "Indtast {{role}} besked her",
 	"Enter a detail about yourself for your LLMs to recall": "Indtast en detalje om dig selv, som dine LLMs kan huske",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "",

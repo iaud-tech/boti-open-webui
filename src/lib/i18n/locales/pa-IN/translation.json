@@ -420,7 +420,7 @@
 	"Endpoint URL": "",
 	"Enforce Temporary Chat": "",
 	"Enhance": "",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "ਸੁਨਿਸ਼ਚਿਤ ਕਰੋ ਕਿ ਤੁਹਾਡੀ CSV ਫਾਈਲ ਵਿੱਚ ਇਸ ਕ੍ਰਮ ਵਿੱਚ 4 ਕਾਲਮ ਹਨ: ਨਾਮ, ਈਮੇਲ, ਪਾਸਵਰਡ, ਭੂਮਿਕਾ।",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "{{role}} ਸੁਨੇਹਾ ਇੱਥੇ ਦਰਜ ਕਰੋ",
 	"Enter a detail about yourself for your LLMs to recall": "ਤੁਹਾਡੇ LLMs ਨੂੰ ਸੁਨੇਹਾ ਕਰਨ ਲਈ ਸੁਨੇਹਾ ਇੱਥੇ ਦਰਜ ਕਰੋ",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "",

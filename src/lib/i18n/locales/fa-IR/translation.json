@@ -420,7 +420,7 @@
 	"Endpoint URL": "",
 	"Enforce Temporary Chat": "اجبار چت موقت",
 	"Enhance": "",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "اطمینان حاصل کنید که فایل CSV شما شامل چهار ستون در این ترتیب است: نام، ایمیل، رمز عبور، نقش.",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "پیام {{role}} را اینجا وارد کنید",
 	"Enter a detail about yourself for your LLMs to recall": "برای ذخیره سازی اطلاعات خود، یک توضیح کوتاه درباره خود را وارد کنید",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "",

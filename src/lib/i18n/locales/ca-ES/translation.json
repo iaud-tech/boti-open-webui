@@ -420,7 +420,7 @@
 	"Endpoint URL": "URL de connexió",
 	"Enforce Temporary Chat": "Forçar els xats temporals",
 	"Enhance": "Millorar",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "Assegura't que els teus fitxers CSV inclouen 4 columnes en aquest ordre: Nom, Correu electrònic, Contrasenya, Rol.",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "Introdueix aquí el missatge de {{role}}",
 	"Enter a detail about yourself for your LLMs to recall": "Introdueix un detall sobre tu què els teus models de llenguatge puguin recordar",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "",

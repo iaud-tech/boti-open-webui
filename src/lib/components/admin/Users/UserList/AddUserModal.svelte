@@ -70,7 +70,7 @@
 					const csv = e.target.result;
 					const rows = csv.split('\n');
 
-					let userCount = 0;					
+					let userCount = 0;
 					const allGroups = await getGroups(localStorage.token).catch((error) => {
 						console.error('Error fetching groups:', error);
 						return [];
@@ -105,7 +105,6 @@
 											.map((g) => g.trim())
 											.filter((g) => g !== '');
 
-
 										if (allGroups && Array.isArray(allGroups)) {
 											for (const groupName of groupNames) {
 												const group = allGroups.find(
@@ -114,14 +113,10 @@
 
 												if (group) {
 													const updatedUserIds = [...(group.user_ids || []), res.id];
-													const updateRes = await updateGroupById(
-														localStorage.token,
-														group.id,
-														{
-															...group,
-															user_ids: updatedUserIds
-														}
-													).catch((error) => {
+													const updateRes = await updateGroupById(localStorage.token, group.id, {
+														...group,
+														user_ids: updatedUserIds
+													}).catch((error) => {
 														toast.error(
 															`Row ${idx + 1}: Error adding user to group "${groupName}": ${error}`
 														);
@@ -313,8 +308,8 @@
 
 								<div class=" text-xs text-gray-500">
 									ⓘ {$i18n.t(
-									'Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column "Groups" can be added with group names separated by ";".'
-								)}
+										'Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column "Groups" can be added with group names separated by ";".'
+									)}
 									<a
 										class="underline dark:text-gray-200"
 										href="{WEBUI_BASE_URL}/static/user-import.csv"

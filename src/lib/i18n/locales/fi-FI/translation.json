@@ -420,7 +420,7 @@
 	"Endpoint URL": "Päätepiste verkko-osoite",
 	"Enforce Temporary Chat": "Pakota väliaikaiset keskustelut",
 	"Enhance": "Paranna",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "Varmista, että CSV-tiedostossasi on 4 saraketta tässä järjestyksessä: Nimi, Sähköposti, Salasana, Rooli.",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "Kirjoita {{role}}-viesti tähän",
 	"Enter a detail about yourself for your LLMs to recall": "Kirjoita yksityiskohta itsestäsi, jonka LLM-ohjelmat voivat muistaa",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "Kirjoita infon otsikko odottaville käyttäjille. Käytä oletusta jättämällä tyhjäksi.",

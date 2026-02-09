@@ -420,7 +420,7 @@
 	"Endpoint URL": "",
 	"Enforce Temporary Chat": "",
 	"Enhance": "",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "დარწმუნდით, რომ თქვენი CSV-ფაილი შეიცავს 4 ველს ამ მიმდევრობით: სახელი, ელფოსტა, პაროლი, როლი.",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "შეიყვანე {{role}} შეტყობინება აქ",
 	"Enter a detail about yourself for your LLMs to recall": "შეიყვანეთ რამე თქვენს შესახებ, რომ თქვენმა LLM-მა გაიხსენოს",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "",

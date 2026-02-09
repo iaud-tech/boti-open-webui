@@ -420,7 +420,7 @@
 	"Endpoint URL": "",
 	"Enforce Temporary Chat": "Ideiglenes csevegés kikényszerítése",
 	"Enhance": "",
-	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.": "Győződj meg róla, hogy a CSV fájl tartalmazza ezt a 4 oszlopot ebben a sorrendben: Név, Email, Jelszó, Szerep.",
+	"Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column \"Groups\" can be added with group names separated by \";\".": "",
 	"Enter {{role}} message here": "Írd ide a {{role}} üzenetet",
 	"Enter a detail about yourself for your LLMs to recall": "Adj meg egy részletet magadról, amit az LLM-ek megjegyezhetnek",
 	"Enter a title for the pending user info overlay. Leave empty for default.": "",
