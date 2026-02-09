@@ -313,7 +313,7 @@
 
 								<div class=" text-xs text-gray-500">
 									ⓘ {$i18n.t(
-									'Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.'
+									'Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column "Groups" can be added with group names separated by ";".'
 								)}
 									<a
 										class="underline dark:text-gray-200"
