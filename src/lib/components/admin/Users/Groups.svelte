@@ -94,6 +94,15 @@
 	};
 
 	const addGroupHandler = async (group) => {
+		const existingGroup = groups.find(
+			(g) => g.name.trim().toLowerCase() === group.name.trim().toLowerCase()
+		);
+
+		if (existingGroup) {
+			toast.warning($i18n.t('A group with this name already exists'));
+			return false;
+		}
+
 		const res = await createNewGroup(localStorage.token, group).catch((error) => {
 			toast.error(`${error}`);
 			return null;
@@ -102,7 +111,10 @@
 		if (res) {
 			toast.success($i18n.t('Group created successfully'));
 			groups = await getGroups(localStorage.token);
+			return true;
 		}
+
+		return false;
 	};
 
 	const updateDefaultPermissionsHandler = async (group) => {
