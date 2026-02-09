@@ -22,14 +22,16 @@
 			description
 		};
 
-		await onSubmit(group);
+		const success = await onSubmit(group);
 
 		loading = false;
-		show = false;
 
-		name = '';
-		description = '';
-		userIds = [];
+		if (success !== false) {
+			show = false;
+			name = '';
+			description = '';
+			userIds = [];
+		}
 	};
 </script>
 

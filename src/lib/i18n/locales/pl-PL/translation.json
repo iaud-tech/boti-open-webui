@@ -13,6 +13,7 @@
 	"{{user}}'s Chats": "Czaty użytkownika {{user}}",
 	"{{webUIName}} Backend Required": "Backend dla {{webUIName}} jest wymagany",
 	"*Prompt node ID(s) are required for image generation": "Wymagane są identyfikatory węzłów wyzwalających do generowania obrazów.",
+	"A group with this name already exists": "",
 	"A new version (v{{LATEST_VERSION}}) is now available.": "Dostępna jest nowa wersja (v{{LATEST_VERSION}}).",
 	"A task model is used when performing tasks such as generating titles for chats and web search queries": "Model zadań jest wykorzystywany podczas realizacji zadań, takich jak generowanie tytułów rozmów i zapytań wyszukiwania internetowego.",
 	"a user": "użytkownik",

@@ -13,6 +13,7 @@
 	"{{user}}'s Chats": "{{user}} 的對話",
 	"{{webUIName}} Backend Required": "需要 {{webUIName}} 後端",
 	"*Prompt node ID(s) are required for image generation": "* 圖片生成需要提示詞節點 ID",
+	"A group with this name already exists": "",
 	"A new version (v{{LATEST_VERSION}}) is now available.": "新版本 (v{{LATEST_VERSION}}) 現已釋出。",
 	"A task model is used when performing tasks such as generating titles for chats and web search queries": "執行「對話標題生成」和「網頁搜尋查詢生成」等任務時使用的任務模型",
 	"a user": "使用者",

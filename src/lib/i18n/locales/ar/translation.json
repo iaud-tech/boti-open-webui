@@ -13,6 +13,7 @@
 	"{{user}}'s Chats": "محادثات المستخدم {{user}}",
 	"{{webUIName}} Backend Required": "يتطلب الخلفية الخاصة بـ {{webUIName}}",
 	"*Prompt node ID(s) are required for image generation": "*معرّف/معرّفات عقدة الموجه مطلوبة لتوليد الصور",
+	"A group with this name already exists": "",
 	"A new version (v{{LATEST_VERSION}}) is now available.": "يتوفر الآن إصدار جديد (v{{LATEST_VERSION}}).",
 	"A task model is used when performing tasks such as generating titles for chats and web search queries": "يُستخدم نموذج المهام عند تنفيذ مهام مثل توليد عناوين المحادثات واستعلامات البحث على الويب",
 	"a user": "مستخدم",

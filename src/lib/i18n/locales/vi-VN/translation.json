@@ -13,6 +13,7 @@
 	"{{user}}'s Chats": "Các cuộc trò chuyện của {{user}}",
 	"{{webUIName}} Backend Required": "{{webUIName}} Yêu cầu Backend",
 	"*Prompt node ID(s) are required for image generation": "*ID nút Prompt là bắt buộc để tạo ảnh",
+	"A group with this name already exists": "",
 	"A new version (v{{LATEST_VERSION}}) is now available.": "Một phiên bản mới (v{{LATEST_VERSION}}) đã có sẵn.",
 	"A task model is used when performing tasks such as generating titles for chats and web search queries": "Mô hình tác vụ được sử dụng khi thực hiện các tác vụ như tạo tiêu đề cho cuộc trò chuyện và truy vấn tìm kiếm trên web",
 	"a user": "người sử dụng",

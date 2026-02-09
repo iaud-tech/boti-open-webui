@@ -13,6 +13,7 @@
 	"{{user}}'s Chats": "{{user}} vestlused",
 	"{{webUIName}} Backend Required": "{{webUIName}} taustaserver on vajalik",
 	"*Prompt node ID(s) are required for image generation": "*Vihje sõlme ID(d) on piltide genereerimiseks vajalikud",
+	"A group with this name already exists": "",
 	"A new version (v{{LATEST_VERSION}}) is now available.": "Uus versioon (v{{LATEST_VERSION}}) on saadaval.",
 	"A task model is used when performing tasks such as generating titles for chats and web search queries": "Ülesande mudelit kasutatakse selliste toimingute jaoks nagu vestluste pealkirjade ja veebiotsingu päringute genereerimine",
 	"a user": "kasutaja",
