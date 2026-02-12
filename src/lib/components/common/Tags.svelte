@@ -7,9 +7,10 @@
 	const i18n = getContext('i18n');
 
 	export let tags = [];
+	export let suggestionTags = [];
 </script>
 
-<div class="flex flex-row flex-wrap gap-1 line-clamp-1">
+<ul class="flex flex-row flex-wrap gap-[0.3rem] line-clamp-1">
 	<TagList
 		{tags}
 		on:delete={(e) => {
@@ -19,8 +20,9 @@
 
 	<TagInput
 		label={tags.length == 0 ? $i18n.t('Add Tags') : ''}
+		{suggestionTags}
 		on:add={(e) => {
 			dispatch('add', e.detail);
 		}}
 	/>
-</div>
+</ul>

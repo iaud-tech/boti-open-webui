@@ -2,6 +2,8 @@ from elasticsearch import Elasticsearch, BadRequestError
 from typing import Optional
 import ssl
 from elasticsearch.helpers import bulk, scan
+
+from open_webui.retrieval.vector.utils import process_metadata
 from open_webui.retrieval.vector.main import (
     VectorDBBase,
     VectorItem,
@@ -151,7 +153,11 @@ class ElasticsearchClient(VectorDBBase):
 
     # Status: works
     def search(
-        self, collection_name: str, vectors: list[list[float]], limit: int
+        self,
+        collection_name: str,
+        vectors: list[list[float]],
+        filter: Optional[dict] = None,
+        limit: int = 10,
     ) -> Optional[SearchResult]:
         query = {
             "size": limit,
@@ -243,7 +249,7 @@ class ElasticsearchClient(VectorDBBase):
                         "collection": collection_name,
                         "vector": item["vector"],
                         "text": item["text"],
-                        "metadata": item["metadata"],
+                        "metadata": process_metadata(item["metadata"]),
                     },
                 }
                 for item in batch
@@ -264,7 +270,7 @@ class ElasticsearchClient(VectorDBBase):
                         "collection": collection_name,
                         "vector": item["vector"],
                         "text": item["text"],
-                        "metadata": item["metadata"],
+                        "metadata": process_metadata(item["metadata"]),
                     },
                     "doc_as_upsert": True,
                 }

@@ -40,7 +40,10 @@ from open_webui.models.functions import Functions
 from open_webui.models.models import Models
 
 
-from open_webui.utils.plugin import load_function_module_by_id
+from open_webui.utils.plugin import (
+    load_function_module_by_id,
+    get_function_module_from_cache,
+)
 from open_webui.utils.models import get_all_models, check_model_access
 from open_webui.utils.payload import convert_payload_openai_to_ollama
 from open_webui.utils.response import (
@@ -52,11 +55,10 @@ from open_webui.utils.filter import (
     process_filter_functions,
 )
 
-from open_webui.env import SRC_LOG_LEVELS, GLOBAL_LOG_LEVEL, BYPASS_MODEL_ACCESS_CONTROL
+from open_webui.env import GLOBAL_LOG_LEVEL, BYPASS_MODEL_ACCESS_CONTROL
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
-log.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 
 async def generate_direct_chat_completion(
@@ -76,6 +78,7 @@ async def generate_direct_chat_completion(
     event_caller = get_event_call(metadata)
 
     channel = f"{user_id}:{session_id}:{request_id}"
+    logging.info(f"WebSocket channel: {channel}")
 
     if form_data.get("stream"):
         q = asyncio.Queue()
@@ -117,7 +120,10 @@ async def generate_direct_chat_completion(
 
                             yield f"data: {json.dumps(data)}\n\n"
                         elif isinstance(data, str):
-                            yield data
+                            if "data:" in data:
+                                yield f"{data}\n\n"
+                            else:
+                                yield f"data: {data}\n\n"
                 except Exception as e:
                     log.debug(f"Error in event generator: {e}")
                     pass
@@ -159,6 +165,7 @@ async def generate_chat_completion(
     form_data: dict,
     user: Any,
     bypass_filter: bool = False,
+    bypass_system_prompt: bool = False,
 ):
     log.debug(f"generate_chat_completion: {form_data}")
     if BYPASS_MODEL_ACCESS_CONTROL:
@@ -230,7 +237,11 @@ async def generate_chat_completion(
                         yield chunk
 
                 response = await generate_chat_completion(
-                    request, form_data, user, bypass_filter=True
+                    request,
+                    form_data,
+                    user,
+                    bypass_filter=True,
+                    bypass_system_prompt=bypass_system_prompt,
                 )
                 return StreamingResponse(
                     stream_wrapper(response.body_iterator),
@@ -241,7 +252,11 @@ async def generate_chat_completion(
                 return {
                     **(
                         await generate_chat_completion(
-                            request, form_data, user, bypass_filter=True
+                            request,
+                            form_data,
+                            user,
+                            bypass_filter=True,
+                            bypass_system_prompt=bypass_system_prompt,
                         )
                     ),
                     "selected_model_id": selected_model_id,
@@ -260,6 +275,7 @@ async def generate_chat_completion(
                 form_data=form_data,
                 user=user,
                 bypass_filter=bypass_filter,
+                bypass_system_prompt=bypass_system_prompt,
             )
             if form_data.get("stream"):
                 response.headers["content-type"] = "text/event-stream"
@@ -276,6 +292,7 @@ async def generate_chat_completion(
                 form_data=form_data,
                 user=user,
                 bypass_filter=bypass_filter,
+                bypass_system_prompt=bypass_system_prompt,
             )
 
 
@@ -303,7 +320,7 @@ async def chat_completed(request: Request, form_data: dict, user: Any):
     try:
         data = await process_pipeline_outlet_filter(request, data, user, models)
     except Exception as e:
-        return Exception(f"Error: {e}")
+        raise Exception(f"Error: {e}")
 
     metadata = {
         "chat_id": data["chat_id"],
@@ -316,12 +333,7 @@ async def chat_completed(request: Request, form_data: dict, user: Any):
     extra_params = {
         "__event_emitter__": get_event_emitter(metadata),
         "__event_call__": get_event_call(metadata),
-        "__user__": {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "role": user.role,
-        },
+        "__user__": user.model_dump() if isinstance(user, UserModel) else {},
         "__metadata__": metadata,
         "__request__": request,
         "__model__": model,
@@ -344,7 +356,7 @@ async def chat_completed(request: Request, form_data: dict, user: Any):
         )
         return result
     except Exception as e:
-        return Exception(f"Error: {e}")
+        raise Exception(f"Error: {e}")
 
 
 async def chat_action(request: Request, action_id: str, form_data: dict, user: Any):
@@ -391,8 +403,7 @@ async def chat_action(request: Request, action_id: str, form_data: dict, user: A
         }
     )
 
-    function_module, _, _ = load_function_module_by_id(action_id)
-    request.app.state.FUNCTIONS[action_id] = function_module
+    function_module, _, _ = get_function_module_from_cache(request, action_id)
 
     if hasattr(function_module, "valves") and hasattr(function_module, "Valves"):
         valves = Functions.get_function_valves_by_id(action_id)
@@ -421,12 +432,7 @@ async def chat_action(request: Request, action_id: str, form_data: dict, user: A
                     params[key] = value
 
             if "__user__" in sig.parameters:
-                __user__ = {
-                    "id": user.id,
-                    "email": user.email,
-                    "name": user.name,
-                    "role": user.role,
-                }
+                __user__ = user.model_dump() if isinstance(user, UserModel) else {}
 
                 try:
                     if hasattr(function_module, "UserValves"):
@@ -446,6 +452,6 @@ async def chat_action(request: Request, action_id: str, form_data: dict, user: A
                 data = action(**params)
 
         except Exception as e:
-            return Exception(f"Error: {e}")
+            raise Exception(f"Error: {e}")
 
     return data

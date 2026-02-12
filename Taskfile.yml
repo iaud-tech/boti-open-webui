@@ -110,7 +110,7 @@ tasks:
       desc:  Formateo, Linting, Build y Checks. Necesario antes de cada commit.
       cmds:
         
-        - uv run npm run format:backend
+        - NODE_OPTIONS="--max-old-space-size=8192" uv run npm run format:backend
         - npm ci
         - npm run format
         - task: setup-frontend

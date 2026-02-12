@@ -25,7 +25,8 @@
 }
 
 html {
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'NotoSans', 'NotoSansJP', 'NotoSansKR',
+	font-family:
+		-apple-system, BlinkMacSystemFont, 'Segoe UI', 'NotoSans', 'NotoSansJP', 'NotoSansKR',
 		'NotoSansSC', 'Twemoji', 'STSong-Light', 'MSung-Light', 'HeiseiMin-W3', 'HYSMyeongJo-Medium',
 		Roboto, 'Helvetica Neue', Arial, sans-serif;
 	font-size: 14px; /* Default font size */
@@ -267,11 +268,6 @@ tbody + tbody {
 /* Note: :has is not supported in CSS, so you would need JavaScript for this behavior */
 .markdown-section p {
 	margin-bottom: 0;
-}
-
-/* Add a rule to reset margin-bottom for <p> not followed by <ul> */
-.markdown-section p + ul {
-	margin-top: 0;
 }
 
 /* List item styles */
