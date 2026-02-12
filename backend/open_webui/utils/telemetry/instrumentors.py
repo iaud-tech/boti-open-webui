@@ -28,7 +28,6 @@ from fastapi import status
 
 from open_webui.utils.telemetry.constants import SPAN_REDIS_TYPE, SpanAttributes
 
-
 logger = logging.getLogger(__name__)
 
 

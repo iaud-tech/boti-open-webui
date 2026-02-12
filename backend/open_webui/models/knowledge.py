@@ -32,7 +32,6 @@ from sqlalchemy import (
 from open_webui.utils.access_control import has_access
 from open_webui.utils.db.access_control import has_permission
 
-
 log = logging.getLogger(__name__)
 
 ####################
