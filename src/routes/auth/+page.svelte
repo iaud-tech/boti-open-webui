@@ -358,7 +358,6 @@
 													/>
 												</div>
 											{/if}
-
 											<div>
 												<label for="password" class="text-sm font-medium text-left mb-1 block"
 													>{$i18n.t('Password')}</label
@@ -371,6 +370,7 @@
 													placeholder={$i18n.t('Enter Your Password')}
 													autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
 													name="password"
+													screenReader={false}
 													required
 												/>
 											</div>
@@ -383,16 +383,36 @@
 														>{$i18n.t('Confirm Password')}</label
 													>
 													<SensitiveInput
-														bind:value={confirmPassword}
+														bind:value={password}
 														type="password"
-														id="confirm-password"
-														class="my-0.5 w-full text-sm outline-hidden bg-transparent"
-														placeholder={$i18n.t('Confirm Your Password')}
-														autocomplete="new-password"
-														name="confirm-password"
+														id="password"
+														class="my-0.5 w-full text-sm outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+														placeholder={$i18n.t('Enter Your Password')}
+														autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
+														name="password"
 														required
 													/>
 												</div>
+
+												{#if mode === 'signup' && $config?.features?.enable_signup_password_confirmation}
+													<div class="mt-2">
+														<label
+															for="confirm-password"
+															class="text-sm font-medium text-left mb-1 block"
+															>{$i18n.t('Confirm Password')}</label
+														>
+														<SensitiveInput
+															bind:value={confirmPassword}
+															type="password"
+															id="confirm-password"
+															class="my-0.5 w-full text-sm outline-hidden bg-transparent"
+															placeholder={$i18n.t('Confirm Your Password')}
+															autocomplete="new-password"
+															name="confirm-password"
+															required
+														/>
+													</div>
+												{/if}
 											{/if}
 										</div>
 									{/if}

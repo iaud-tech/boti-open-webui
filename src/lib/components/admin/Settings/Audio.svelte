@@ -277,7 +277,7 @@
 								/>
 
 								<datalist id="model-list">
-									<option value="whisper-1" />
+									<option value="whisper-1"></option>
 								</datalist>
 							</div>
 						</div>
