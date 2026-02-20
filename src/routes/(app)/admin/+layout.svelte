@@ -29,7 +29,7 @@
 {#if loaded}
 	<div
 		class=" flex flex-col h-screen max-h-[100dvh] flex-1 transition-width duration-200 ease-in-out {$showSidebar
-			? 'md:max-w-[calc(100%-260px)]'
+			? 'md:max-w-[calc(100%-var(--sidebar-width))]'
 			: ' md:max-w-[calc(100%-49px)]'}  w-full max-w-full"
 	>
 		<nav class="   px-2.5 pt-1.5 backdrop-blur-xl drag-region">
@@ -66,12 +66,12 @@
 							href="/admin">{$i18n.t('Users')}</a
 						>
 
-						<!-- <a
+						<a
 							class="min-w-fit p-1.5 {$page.url.pathname.includes('/admin/analytics')
 								? ''
 								: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
 							href="/admin/analytics">{$i18n.t('Analytics')}</a
-						> -->
+						>
 
 						<a
 							class="min-w-fit p-1.5 {$page.url.pathname.includes('/admin/evaluations')

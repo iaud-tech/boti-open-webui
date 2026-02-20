@@ -8,12 +8,9 @@ import uuid
 
 from open_webui.utils.misc import get_last_user_message, get_messages_content
 
-from open_webui.env import SRC_LOG_LEVELS
 from open_webui.config import DEFAULT_RAG_TEMPLATE
 
-
 log = logging.getLogger(__name__)
-log.setLevel(SRC_LOG_LEVELS["RAG"])
 
 
 def get_task_model_id(
@@ -71,6 +68,7 @@ def prompt_template(template: str, user: Optional[Any] = None) -> str:
 
             USER_VARIABLES = {
                 "name": str(user.get("name")),
+                "email": str(user.get("email")),
                 "location": str(user_info.get("location")),
                 "bio": str(user.get("bio")),
                 "gender": str(user.get("gender")),
@@ -94,6 +92,9 @@ def prompt_template(template: str, user: Optional[Any] = None) -> str:
     template = template.replace("{{CURRENT_WEEKDAY}}", formatted_weekday)
 
     template = template.replace("{{USER_NAME}}", USER_VARIABLES.get("name", "Unknown"))
+    template = template.replace(
+        "{{USER_EMAIL}}", USER_VARIABLES.get("email", "Unknown")
+    )
     template = template.replace("{{USER_BIO}}", USER_VARIABLES.get("bio", "Unknown"))
     template = template.replace(
         "{{USER_GENDER}}", USER_VARIABLES.get("gender", "Unknown")
@@ -208,20 +209,21 @@ def rag_template(template: str, context: str, query: str):
     if "[query]" in context:
         query_placeholder = "{{QUERY" + str(uuid.uuid4()) + "}}"
         template = template.replace("[query]", query_placeholder)
-        query_placeholders.append(query_placeholder)
+        query_placeholders.append((query_placeholder, "[query]"))
 
     if "{{QUERY}}" in context:
         query_placeholder = "{{QUERY" + str(uuid.uuid4()) + "}}"
         template = template.replace("{{QUERY}}", query_placeholder)
-        query_placeholders.append(query_placeholder)
+        query_placeholders.append((query_placeholder, "{{QUERY}}"))
 
     template = template.replace("[context]", context)
     template = template.replace("{{CONTEXT}}", context)
+
     template = template.replace("[query]", query)
     template = template.replace("{{QUERY}}", query)
 
-    for query_placeholder in query_placeholders:
-        template = template.replace(query_placeholder, query)
+    for query_placeholder, original_placeholder in query_placeholders:
+        template = template.replace(query_placeholder, original_placeholder)
 
     return template
 

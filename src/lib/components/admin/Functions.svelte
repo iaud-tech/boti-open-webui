@@ -4,7 +4,7 @@
 	const { saveAs } = fileSaver;
 
 	import { WEBUI_NAME, config, functions as _functions, models, settings, user } from '$lib/stores';
-	import { onMount, getContext, tick } from 'svelte';
+	import { onMount, getContext, tick, onDestroy } from 'svelte';
 
 	import { goto } from '$app/navigation';
 	import {
@@ -53,6 +53,7 @@
 	let viewOption = '';
 
 	let query = '';
+	let searchDebounceTimer: ReturnType<typeof setTimeout>;
 	let selectedTag = '';
 	let selectedType = '';
 
@@ -70,12 +71,14 @@
 	let functions = null;
 	let filteredItems = [];
 
-	$: if (
-		functions &&
-		query !== undefined &&
-		selectedType !== undefined &&
-		viewOption !== undefined
-	) {
+	$: if (query !== undefined) {
+		clearTimeout(searchDebounceTimer);
+		searchDebounceTimer = setTimeout(() => {
+			setFilteredItems();
+		}, 300);
+	}
+
+	$: if (functions && selectedType !== undefined && viewOption !== undefined) {
 		setFilteredItems();
 	}
 
@@ -86,7 +89,10 @@
 					(selectedType !== '' ? f.type === selectedType : true) &&
 					(query === '' ||
 						f.name.toLowerCase().includes(query.toLowerCase()) ||
-						f.id.toLowerCase().includes(query.toLowerCase())) &&
+						f.id.toLowerCase().includes(query.toLowerCase()) ||
+						(f.user?.name || '').toLowerCase().includes(query.toLowerCase()) ||
+						(f.user?.email || '').toLowerCase().includes(query.toLowerCase()) ||
+						(f.user?.username || '').toLowerCase().includes(query.toLowerCase())) &&
 					(viewOption === '' ||
 						(viewOption === 'created' && f.user_id === $user?.id) ||
 						(viewOption === 'shared' && f.user_id !== $user?.id))
@@ -236,6 +242,10 @@
 			window.removeEventListener('blur-sm', onBlur);
 		};
 	});
+
+	onDestroy(() => {
+		clearTimeout(searchDebounceTimer);
+	});
 </script>
 
 <svelte:head>
@@ -343,7 +353,7 @@
 		</div>
 
 		<div
-			class="py-2 bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-850"
+			class="py-2 bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30"
 		>
 			<div class="px-3.5 flex flex-1 items-center w-full space-x-2 py-0.5 pb-2">
 				<div class="flex flex-1">

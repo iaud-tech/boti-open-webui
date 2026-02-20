@@ -3,6 +3,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onMount, getContext } from 'svelte';
 	import { addUser } from '$lib/apis/auths';
+	import { getGroups, addUserToGroup } from '$lib/apis/groups';
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
@@ -73,6 +74,10 @@
 					const rows = csv.split('\n');
 
 					let userCount = 0;
+					const allGroups = await getGroups(localStorage.token).catch((error) => {
+						console.error('Error fetching groups:', error);
+						return [];
+					});
 
 					for (const [idx, row] of rows.entries()) {
 						const columns = row.split(',').map((col) => col.trim());
@@ -80,7 +85,7 @@
 
 						if (idx > 0) {
 							if (
-								columns.length === 4 &&
+								(columns.length === 4 || columns.length === 5) &&
 								['admin', 'user', 'pending'].includes(columns[3].toLowerCase())
 							) {
 								const res = await addUser(
@@ -97,6 +102,35 @@
 
 								if (res) {
 									userCount = userCount + 1;
+									if (columns[4] && columns[4].trim() !== '') {
+										const groupNames = columns[4]
+											.split(';')
+											.map((g) => g.trim())
+											.filter((g) => g !== '');
+
+										if (allGroups && Array.isArray(allGroups)) {
+											for (const groupName of groupNames) {
+												const group = allGroups.find(
+													(g) => g.name.toLowerCase() === groupName.toLowerCase()
+												);
+
+												if (group) {
+													await addUserToGroup(localStorage.token, group.id, [res.id]).catch(
+														(error) => {
+															toast.error(
+																`Row ${idx + 1}: Error adding user to group "${groupName}": ${error}`
+															);
+															return null;
+														}
+													);
+												} else {
+													toast.warning(
+														`Row ${idx + 1}: Group "${groupName}" not found, skipping.`
+													);
+												}
+											}
+										}
+									}
 								}
 							} else {
 								toast.error(`Row ${idx + 1}: invalid format.`);
@@ -180,7 +214,7 @@
 
 								<div class="flex-1">
 									<select
-										class="w-full capitalize rounded-lg text-sm bg-transparent dark:disabled:text-gray-500 outline-hidden"
+										class="dark:bg-gray-900 w-full capitalize rounded-lg text-sm bg-transparent dark:disabled:text-gray-500 outline-hidden"
 										bind:value={_user.role}
 										placeholder={$i18n.t('Enter Your Role')}
 										required
@@ -207,7 +241,7 @@
 								</div>
 							</div>
 
-							<hr class=" border-gray-100 dark:border-gray-850 my-2.5 w-full" />
+							<hr class=" border-gray-100/30 dark:border-gray-850/30 my-2.5 w-full" />
 
 							<div class="flex flex-col w-full">
 								<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Email')}</div>
@@ -265,7 +299,7 @@
 
 								<div class=" text-xs text-gray-500">
 									ⓘ {$i18n.t(
-										'Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.'
+										'Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role. Optionally, a 5th column "Groups" can be added with group names separated by ";".'
 									)}
 									<a
 										class="underline dark:text-gray-200"

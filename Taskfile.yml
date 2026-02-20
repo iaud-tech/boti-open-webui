@@ -1,0 +1,120 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task: help
+
+  help:
+    desc: Muestra la lista de comandos disponibles
+    cmds:
+      - task --list
+
+  first-time-setup:
+      desc: EJECUTAR SOLO LA PRIMERA VEZ - Instalación completa (Sistema, Ollama opcional y App)
+      interactive: true
+      cmds:
+        - test -f .env || cp -RPp .env.example .env
+        - task: install-system-deps
+        
+        - |
+          echo "----------------------------------------------------------------"
+          echo "🤖 ¿Deseas instalar Ollama y descargar un modelo ahora? (y/n)"
+          read -r response
+          if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+            echo "Instalando Ollama..."
+            task install-ollama
+            
+            echo "Iniciando servicio Ollama..."
+            task ollama-start
+            
+            echo "¿Qué modelo quieres descargar? (Presiona Enter para usar 'llama3.2')"
+            read -r model_name
+            if [ -z "$model_name" ]; then
+              model_name="llama3.2"
+            fi
+            
+            echo "Descargando modelo $model_name ..."
+            task ollama-pull -- "$model_name"
+          else
+            echo "Saltando instalación de Ollama."
+          fi
+
+        - task: setup-all
+        
+        - echo "Instalación de primera vez completada."
+
+  install-system-deps:
+    desc: Instala Node.js 22.x y UV (requiere sudo)
+    cmds:
+      - curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+      - sudo apt install nodejs zstd -y
+      - curl -LsSf https://astral.sh/uv/install.sh | sh
+
+  install-ollama:
+    desc: Instala Ollama para ejecutar modelos LLM localmente
+    cmds:
+      - curl -fsSL https://ollama.com/install.sh | sh
+
+  ollama-pull:
+    desc: Descarga un modelo de Ollama (uso - task ollama-pull -- llama3.2)
+    cmds:
+      - ollama pull {{.CLI_ARGS | default "llama3.2"}}
+
+  ollama-start:
+    desc: Inicia el servicio de Ollama
+    cmds:
+      - sudo systemctl start ollama
+      - echo "Ollama iniciado. Verifica con 'task ollama-status'"
+
+  ollama-stop:
+    desc: Detiene el servicio de Ollama
+    cmds:
+      - sudo systemctl stop ollama
+
+  ollama-status:
+    desc: Muestra el estado del servicio de Ollama
+    cmds:
+      - systemctl status ollama --no-pager
+
+  setup-frontend:
+    desc: Instala dependencias y construye el frontend
+    cmds:
+      - npm install --force
+      - NODE_OPTIONS="--max-old-space-size=8192" npm run build
+
+  setup-backend:
+    desc: Configura el entorno Python 3.11 e instala dependencias del backend
+    cmds:
+      - uv venv --python 3.11
+      - NODE_OPTIONS="--max-old-space-size=8192" uv sync
+
+  setup-all:
+    desc: Ejecuta toda la configuración inicial (Frontend y Backend)
+    cmds:
+      - task: setup-frontend
+      - task: setup-backend
+
+  dev-frontend:
+    desc: Levanta el servidor de desarrollo del frontend
+    cmds:
+      - npm run dev
+
+  dev-backend:
+    desc: Levanta el servidor del backend
+    dir: backend
+    cmds:
+      - uv run sh dev.sh
+
+  pre-commit:
+      desc:  Formateo, Linting, Build y Checks. Necesario antes de cada commit.
+      cmds:
+        
+        - NODE_OPTIONS="--max-old-space-size=8192" uv run npm run format:backend
+        - npm ci
+        - npm run format
+        - task: setup-frontend
+        - npm run i18n:parse
+
+        - echo "Estado final de los archivos:"
+        - git status

@@ -16,7 +16,6 @@ import aiohttp
 import aiofiles
 import requests
 import mimetypes
-from urllib.parse import urljoin, quote
 
 from fastapi import (
     Depends,
@@ -34,12 +33,18 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 
+from open_webui.utils.misc import strict_match_mime_type
 from open_webui.utils.auth import get_admin_user, get_verified_user
+from open_webui.utils.access_control import has_permission
+from open_webui.utils.headers import include_user_info_headers
 from open_webui.config import (
     WHISPER_MODEL_AUTO_UPDATE,
+    WHISPER_COMPUTE_TYPE,
     WHISPER_MODEL_DIR,
+    WHISPER_VAD_FILTER,
     CACHE_DIR,
     WHISPER_LANGUAGE,
+    WHISPER_MULTILINGUAL,
     ELEVENLABS_API_BASE_URL,
 )
 
@@ -48,11 +53,10 @@ from open_webui.env import (
     ENV,
     AIOHTTP_CLIENT_SESSION_SSL,
     AIOHTTP_CLIENT_TIMEOUT,
-    SRC_LOG_LEVELS,
+    AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST,
     DEVICE_TYPE,
     ENABLE_FORWARD_USER_INFO_HEADERS,
 )
-
 
 router = APIRouter()
 
@@ -63,7 +67,6 @@ AZURE_MAX_FILE_SIZE_MB = 200
 AZURE_MAX_FILE_SIZE = AZURE_MAX_FILE_SIZE_MB * 1024 * 1024  # Convert MB to bytes
 
 log = logging.getLogger(__name__)
-log.setLevel(SRC_LOG_LEVELS["AUDIO"])
 
 SPEECH_CACHE_DIR = CACHE_DIR / "audio" / "speech"
 SPEECH_CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -130,7 +133,7 @@ def set_faster_whisper_model(model: str, auto_update: bool = False):
         faster_whisper_kwargs = {
             "model_size_or_path": model,
             "device": DEVICE_TYPE if DEVICE_TYPE and DEVICE_TYPE == "cuda" else "cpu",
-            "compute_type": "int8",
+            "compute_type": WHISPER_COMPUTE_TYPE,
             "download_root": WHISPER_MODEL_DIR,
             "local_files_only": not auto_update,
         }
@@ -329,6 +332,20 @@ def load_speech_pipeline(request):
 
 @router.post("/speech")
 async def speech(request: Request, user=Depends(get_verified_user)):
+    if request.app.state.config.TTS_ENGINE == "":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    if user.role != "admin" and not has_permission(
+        user.id, "chat.tts", request.app.state.config.USER_PERMISSIONS
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+
     body = await request.body()
     name = hashlib.sha256(
         body
@@ -364,23 +381,17 @@ async def speech(request: Request, user=Depends(get_verified_user)):
                     **(request.app.state.config.TTS_OPENAI_PARAMS or {}),
                 }
 
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {request.app.state.config.TTS_OPENAI_API_KEY}",
+                }
+                if ENABLE_FORWARD_USER_INFO_HEADERS:
+                    headers = include_user_info_headers(headers, user)
+
                 r = await session.post(
                     url=f"{request.app.state.config.TTS_OPENAI_API_BASE_URL}/audio/speech",
                     json=payload,
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {request.app.state.config.TTS_OPENAI_API_KEY}",
-                        **(
-                            {
-                                "X-OpenWebUI-User-Name": quote(user.name, safe=" "),
-                                "X-OpenWebUI-User-Id": user.id,
-                                "X-OpenWebUI-User-Email": user.email,
-                                "X-OpenWebUI-User-Role": user.role,
-                            }
-                            if ENABLE_FORWARD_USER_INFO_HEADERS
-                            else {}
-                        ),
-                    },
+                    headers=headers,
                     ssl=AIOHTTP_CLIENT_SESSION_SSL,
                 )
 
@@ -570,7 +581,7 @@ async def speech(request: Request, user=Depends(get_verified_user)):
         return FileResponse(file_path)
 
 
-def transcription_handler(request, file_path, metadata):
+def transcription_handler(request, file_path, metadata, user=None):
     filename = os.path.basename(file_path)
     file_dir = os.path.dirname(file_path)
     id = filename.split(".")[0]
@@ -592,8 +603,9 @@ def transcription_handler(request, file_path, metadata):
         segments, info = model.transcribe(
             file_path,
             beam_size=5,
-            vad_filter=request.app.state.config.WHISPER_VAD_FILTER,
+            vad_filter=WHISPER_VAD_FILTER,
             language=languages[0],
+            multilingual=WHISPER_MULTILINGUAL,
         )
         log.info(
             "Detected language '%s' with probability %f"
@@ -621,14 +633,20 @@ def transcription_handler(request, file_path, metadata):
                 if language:
                     payload["language"] = language
 
-                r = requests.post(
-                    url=f"{request.app.state.config.STT_OPENAI_API_BASE_URL}/audio/transcriptions",
-                    headers={
-                        "Authorization": f"Bearer {request.app.state.config.STT_OPENAI_API_KEY}"
-                    },
-                    files={"file": (filename, open(file_path, "rb"))},
-                    data=payload,
-                )
+                headers = {
+                    "Authorization": f"Bearer {request.app.state.config.STT_OPENAI_API_KEY}"
+                }
+                if user and ENABLE_FORWARD_USER_INFO_HEADERS:
+                    headers = include_user_info_headers(headers, user)
+
+                with open(file_path, "rb") as audio_file:
+                    r = requests.post(
+                        url=f"{request.app.state.config.STT_OPENAI_API_BASE_URL}/audio/transcriptions",
+                        headers=headers,
+                        files={"file": (filename, audio_file)},
+                        data=payload,
+                        timeout=AIOHTTP_CLIENT_TIMEOUT,
+                    )
 
                 if r.status_code == 200:
                     # Successful transcription
@@ -688,6 +706,7 @@ def transcription_handler(request, file_path, metadata):
                     headers=headers,
                     params=params,
                     data=file_data,
+                    timeout=AIOHTTP_CLIENT_TIMEOUT,
                 )
 
                 if r.status_code == 200:
@@ -799,6 +818,7 @@ def transcription_handler(request, file_path, metadata):
                     headers={
                         "Ocp-Apim-Subscription-Key": api_key,
                     },
+                    timeout=AIOHTTP_CLIENT_TIMEOUT,
                 )
 
             r.raise_for_status()
@@ -938,6 +958,7 @@ def transcription_handler(request, file_path, metadata):
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                     },
+                    timeout=AIOHTTP_CLIENT_TIMEOUT,
                 )
 
                 r.raise_for_status()
@@ -981,6 +1002,7 @@ def transcription_handler(request, file_path, metadata):
                         headers={
                             "Authorization": f"Bearer {api_key}",
                         },
+                        timeout=AIOHTTP_CLIENT_TIMEOUT,
                     )
 
                 r.raise_for_status()
@@ -1027,7 +1049,9 @@ def transcription_handler(request, file_path, metadata):
             )
 
 
-def transcribe(request: Request, file_path: str, metadata: Optional[dict] = None):
+def transcribe(
+    request: Request, file_path: str, metadata: Optional[dict] = None, user=None
+):
     log.info(f"transcribe: {file_path} {metadata}")
 
     if is_audio_conversion_required(file_path):
@@ -1054,7 +1078,9 @@ def transcribe(request: Request, file_path: str, metadata: Optional[dict] = None
         with ThreadPoolExecutor() as executor:
             # Submit tasks for each chunk_path
             futures = [
-                executor.submit(transcription_handler, request, chunk_path, metadata)
+                executor.submit(
+                    transcription_handler, request, chunk_path, metadata, user
+                )
                 for chunk_path in chunk_paths
             ]
             # Gather results as they complete
@@ -1149,21 +1175,19 @@ def transcription(
     language: Optional[str] = Form(None),
     user=Depends(get_verified_user),
 ):
+    if user.role != "admin" and not has_permission(
+        user.id, "chat.stt", request.app.state.config.USER_PERMISSIONS
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
     log.info(f"file.content_type: {file.content_type}")
-
     stt_supported_content_types = getattr(
         request.app.state.config, "STT_SUPPORTED_CONTENT_TYPES", []
     )
 
-    if not any(
-        fnmatch(file.content_type, content_type)
-        for content_type in (
-            stt_supported_content_types
-            if stt_supported_content_types
-            and any(t.strip() for t in stt_supported_content_types)
-            else ["audio/*", "video/webm"]
-        )
-    ):
+    if not strict_match_mime_type(stt_supported_content_types, file.content_type):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.FILE_NOT_SUPPORTED,
@@ -1189,7 +1213,7 @@ def transcription(
             if language:
                 metadata = {"language": language}
 
-            result = transcribe(request, file_path, metadata)
+            result = transcribe(request, file_path, metadata, user)
 
             return {
                 **result,
@@ -1222,7 +1246,8 @@ def get_available_models(request: Request) -> list[dict]:
         ):
             try:
                 response = requests.get(
-                    f"{request.app.state.config.TTS_OPENAI_API_BASE_URL}/audio/models"
+                    f"{request.app.state.config.TTS_OPENAI_API_BASE_URL}/audio/models",
+                    timeout=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST,
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -1268,7 +1293,8 @@ def get_available_voices(request) -> dict:
         ):
             try:
                 response = requests.get(
-                    f"{request.app.state.config.TTS_OPENAI_API_BASE_URL}/audio/voices"
+                    f"{request.app.state.config.TTS_OPENAI_API_BASE_URL}/audio/voices",
+                    timeout=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST,
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -1312,7 +1338,9 @@ def get_available_voices(request) -> dict:
                 "Ocp-Apim-Subscription-Key": request.app.state.config.TTS_API_KEY
             }
 
-            response = requests.get(url, headers=headers)
+            response = requests.get(
+                url, headers=headers, timeout=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST
+            )
             response.raise_for_status()
             voices = response.json()
 
@@ -1344,6 +1372,7 @@ def get_elevenlabs_voices(api_key: str) -> dict:
                 "xi-api-key": api_key,
                 "Content-Type": "application/json",
             },
+            timeout=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST,
         )
         response.raise_for_status()
         voices_data = response.json()
