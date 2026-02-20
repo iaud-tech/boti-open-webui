@@ -33,7 +33,7 @@
 			</p>
 			<p class="text-sm sm:text-base mb-3 text-gray-700 dark:text-gray-300 text-justify">
 				{$i18n.t(
-					"The use of this platform is experimental in nature and is intended for academic and research purposes only. When accessing the system, the user's email address is recorded along with information relating to their activity during the session. This data will be processed in accordance with the General Data Protection Regulation (GDPR) 2016/679, and will be kept for a maximum of six months, after which it will be securely deleted. It will not be used for commercial purposes or passed on to third parties."
+					"The use of this platform is experimental in nature and is intended for academic and research purposes only. When accessing the system, the user's email address is recorded along with information relating to their activity during the session. This data will be processed in accordance with the General Data Protection Regulation (GDPR) 2016/679, and will be kept for a maximum of six months, after which it will be securely deleted. It will not be used for commercial purposes or passed on to third parties.Please note that chat conversations can be accessed by the model owner; therefore, you must not input any sensitive personal information (such as medical or academic data), source code, or industrial secrets."
 				)}
 			</p>
 			<p class="text-sm sm:text-base mb-3 text-gray-700 dark:text-gray-300 text-justify">
