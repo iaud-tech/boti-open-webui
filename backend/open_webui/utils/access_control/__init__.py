@@ -238,6 +238,8 @@ def get_chat_export_permission(user_id: str) -> bool:
 
     # Ningún grupo tiene export True
     return False
+
+
 from open_webui.models.access_grants import (
     has_public_read_access_grant,
     has_user_access_grant,

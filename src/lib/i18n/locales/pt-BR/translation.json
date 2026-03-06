@@ -1462,6 +1462,7 @@
 	"Playground": "Playground",
 	"Playwright Timeout (ms)": "Tempo limite do Playwright (ms)",
 	"Playwright WebSocket URL": "URL do WebSocket do Playwright",
+	"Please accept the notice to continue.": "",
 	"Please carefully review the following warnings:": "Por favor, revise cuidadosamente os seguintes avisos:",
 	"Please do not close the settings page while loading the model.": "Não feche a página de configurações enquanto estiver carregando o modelo.",
 	"Please enter a message or attach a file.": "Por favor, insira uma mensagem ou anexe um arquivo.",

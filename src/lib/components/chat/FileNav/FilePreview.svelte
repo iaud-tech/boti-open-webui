@@ -27,7 +27,7 @@
 	let editTextarea: HTMLTextAreaElement;
 
 	// Reset edit state when switching files
-	$: selectedFile, resetEdit();
+	$: (selectedFile, resetEdit());
 
 	const resetEdit = () => {
 		editing = false;
@@ -116,7 +116,7 @@
 	$: csvBody = csvRows.length > 1 ? csvRows.slice(1) : [];
 
 	export let showRaw = false;
-	$: selectedFile, (showRaw = false); // reset to preview mode when switching files
+	$: (selectedFile, (showRaw = false)); // reset to preview mode when switching files
 
 	let pzInstance: PanZoom | null = null;
 

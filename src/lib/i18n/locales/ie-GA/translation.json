@@ -834,6 +834,7 @@
 	"Failed to create API Key.": "Theip ar an eochair API a chruthú.",
 	"Failed to delete note": "Theip ar an nóta a scriosadh",
 	"Failed to download image": "Theip ar an íomhá a íoslódáil",
+	"Failed to export chats": "",
 	"Failed to extract content from the file: {{error}}": "Theip ar an ábhar a bhaint as an gcomhad: {{error}}",
 	"Failed to extract content from the file.": "Theip ar an ábhar a bhaint as an gcomhad.",
 	"Failed to fetch models": "Theip ar shamhlacha a fháil",

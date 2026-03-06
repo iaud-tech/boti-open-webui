@@ -834,6 +834,7 @@
 	"Failed to create API Key.": "API-avaimen luonti epäonnistui.",
 	"Failed to delete note": "Muistiinpanon poistaminen epäonnistui",
 	"Failed to download image": "Kuvan lataaminen epäonnistui",
+	"Failed to export chats": "",
 	"Failed to extract content from the file: {{error}}": "Tiedoston sisällön pomiminen epäonnistui: {{error}}",
 	"Failed to extract content from the file.": "Tiedoston sisällön pomiminen epäonnistui.",
 	"Failed to fetch models": "Mallien hakeminen epäonnistui",
