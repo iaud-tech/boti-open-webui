@@ -269,11 +269,10 @@
 											crossorigin="anonymous"
 											src="{WEBUI_BASE_URL}/static/favicon.png"
 											class="size-24 rounded-full"
-											alt=""
+											alt="{$WEBUI_NAME} logo"
 										/>
 									</div>
 								{/if}
-
 								<form
 									class=" flex flex-col justify-center"
 									on:submit={(e) => {
@@ -286,9 +285,7 @@
 											{#if $config?.onboarding ?? false}
 												{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 											{:else if mode === 'ldap'}
-												{$i18n.t(`Sign in to {{WEBUI_NAME}} with LDAP`, {
-													WEBUI_NAME: $WEBUI_NAME
-												})}
+												{$i18n.t(`Sign in to {{WEBUI_NAME}} with LDAP`, { WEBUI_NAME: $WEBUI_NAME })}
 											{:else if mode === 'signin'}
 												{$i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 											{:else}
@@ -358,6 +355,7 @@
 													/>
 												</div>
 											{/if}
+
 											<div>
 												<label for="password" class="text-sm font-medium text-left mb-1 block"
 													>{$i18n.t('Password')}</label
@@ -370,8 +368,9 @@
 													placeholder={$i18n.t('Enter Your Password')}
 													autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
 													name="password"
-													screenReader={false}
+													screenReader={true}
 													required
+													aria-required="true"
 												/>
 											</div>
 
@@ -383,36 +382,16 @@
 														>{$i18n.t('Confirm Password')}</label
 													>
 													<SensitiveInput
-														bind:value={password}
+														bind:value={confirmPassword}
 														type="password"
-														id="password"
-														class="my-0.5 w-full text-sm outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
-														placeholder={$i18n.t('Enter Your Password')}
-														autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
-														name="password"
+														id="confirm-password"
+														class="my-0.5 w-full text-sm outline-hidden bg-transparent"
+														placeholder={$i18n.t('Confirm Your Password')}
+														autocomplete="new-password"
+														name="confirm-password"
 														required
 													/>
 												</div>
-
-												{#if mode === 'signup' && $config?.features?.enable_signup_password_confirmation}
-													<div class="mt-2">
-														<label
-															for="confirm-password"
-															class="text-sm font-medium text-left mb-1 block"
-															>{$i18n.t('Confirm Password')}</label
-														>
-														<SensitiveInput
-															bind:value={confirmPassword}
-															type="password"
-															id="confirm-password"
-															class="my-0.5 w-full text-sm outline-hidden bg-transparent"
-															placeholder={$i18n.t('Confirm Your Password')}
-															autocomplete="new-password"
-															name="confirm-password"
-															required
-														/>
-													</div>
-												{/if}
 											{/if}
 										</div>
 									{/if}
@@ -487,6 +466,7 @@
 													xmlns="http://www.w3.org/2000/svg"
 													viewBox="0 0 48 48"
 													class="size-6 mr-3"
+													aria-hidden="true"
 												>
 													<path
 														fill="#EA4335"
@@ -516,6 +496,7 @@
 													xmlns="http://www.w3.org/2000/svg"
 													viewBox="0 0 21 21"
 													class="size-6 mr-3"
+													aria-hidden="true"
 												>
 													<rect x="1" y="1" width="9" height="9" fill="#f25022" /><rect
 														x="1"
@@ -531,8 +512,7 @@
 														fill="#ffb900"
 													/>
 												</svg>
-												<span
-													>{$i18n.t('Continue with {{provider}}', { provider: 'Microsoft' })}</span
+												<span>{$i18n.t('Continue with {{provider}}', { provider: 'Microsoft' })}</span
 												>
 											</button>
 										{/if}
@@ -547,6 +527,7 @@
 													xmlns="http://www.w3.org/2000/svg"
 													viewBox="0 0 24 24"
 													class="size-6 mr-3"
+													aria-hidden="true"
 												>
 													<path
 														fill="currentColor"
@@ -570,6 +551,7 @@
 													stroke-width="1.5"
 													stroke="currentColor"
 													class="size-6 mr-3"
+													aria-hidden="true"
 												>
 													<path
 														stroke-linecap="round"
