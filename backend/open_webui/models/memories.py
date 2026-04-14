@@ -1,19 +1,20 @@
 import time
 import uuid
-from typing import Optional
 
-from sqlalchemy.orm import Session
-from open_webui.internal.db import Base, get_db, get_db_context
+from open_webui.internal.db import Base, get_db_context
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import BigInteger, Column, String, Text
+from sqlalchemy.orm import Session
 
 ####################
 # Memory DB Schema
+# What was learned at cost should not need to be paid
+# for again. Let the memory hold.
 ####################
 
 
 class Memory(Base):
-    __tablename__ = "memory"
+    __tablename__ = 'memory'
 
     id = Column(String, primary_key=True, unique=True)
     user_id = Column(String)
@@ -42,18 +43,18 @@ class MemoriesTable:
         self,
         user_id: str,
         content: str,
-        db: Optional[Session] = None,
-    ) -> Optional[MemoryModel]:
+        db: Session | None = None,
+    ) -> MemoryModel | None:
         with get_db_context(db) as db:
             id = str(uuid.uuid4())
 
             memory = MemoryModel(
                 **{
-                    "id": id,
-                    "user_id": user_id,
-                    "content": content,
-                    "created_at": int(time.time()),
-                    "updated_at": int(time.time()),
+                    'id': id,
+                    'user_id': user_id,
+                    'content': content,
+                    'created_at': int(time.time()),
+                    'updated_at': int(time.time()),
                 }
             )
             result = Memory(**memory.model_dump())
@@ -70,8 +71,8 @@ class MemoriesTable:
         id: str,
         user_id: str,
         content: str,
-        db: Optional[Session] = None,
-    ) -> Optional[MemoryModel]:
+        db: Session | None = None,
+    ) -> MemoryModel | None:
         with get_db_context(db) as db:
             try:
                 memory = db.get(Memory, id)
@@ -87,7 +88,7 @@ class MemoriesTable:
             except Exception:
                 return None
 
-    def get_memories(self, db: Optional[Session] = None) -> list[MemoryModel]:
+    def get_memories(self, db: Session | None = None) -> list[MemoryModel]:
         with get_db_context(db) as db:
             try:
                 memories = db.query(Memory).all()
@@ -95,9 +96,7 @@ class MemoriesTable:
             except Exception:
                 return None
 
-    def get_memories_by_user_id(
-        self, user_id: str, db: Optional[Session] = None
-    ) -> list[MemoryModel]:
+    def get_memories_by_user_id(self, user_id: str, db: Session | None = None) -> list[MemoryModel]:
         with get_db_context(db) as db:
             try:
                 memories = db.query(Memory).filter_by(user_id=user_id).all()
@@ -105,9 +104,7 @@ class MemoriesTable:
             except Exception:
                 return None
 
-    def get_memory_by_id(
-        self, id: str, db: Optional[Session] = None
-    ) -> Optional[MemoryModel]:
+    def get_memory_by_id(self, id: str, db: Session | None = None) -> MemoryModel | None:
         with get_db_context(db) as db:
             try:
                 memory = db.get(Memory, id)
@@ -115,7 +112,7 @@ class MemoriesTable:
             except Exception:
                 return None
 
-    def delete_memory_by_id(self, id: str, db: Optional[Session] = None) -> bool:
+    def delete_memory_by_id(self, id: str, db: Session | None = None) -> bool:
         with get_db_context(db) as db:
             try:
                 db.query(Memory).filter_by(id=id).delete()
@@ -126,9 +123,7 @@ class MemoriesTable:
             except Exception:
                 return False
 
-    def delete_memories_by_user_id(
-        self, user_id: str, db: Optional[Session] = None
-    ) -> bool:
+    def delete_memories_by_user_id(self, user_id: str, db: Session | None = None) -> bool:
         with get_db_context(db) as db:
             try:
                 db.query(Memory).filter_by(user_id=user_id).delete()
@@ -138,9 +133,7 @@ class MemoriesTable:
             except Exception:
                 return False
 
-    def delete_memory_by_id_and_user_id(
-        self, id: str, user_id: str, db: Optional[Session] = None
-    ) -> bool:
+    def delete_memory_by_id_and_user_id(self, id: str, user_id: str, db: Session | None = None) -> bool:
         with get_db_context(db) as db:
             try:
                 memory = db.get(Memory, id)

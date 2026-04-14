@@ -1,17 +1,14 @@
 """Prompt history model for version tracking."""
 
+import difflib
 import time
 import uuid
-from typing import Optional
-import json
-import difflib
 
-from sqlalchemy.orm import Session
 from open_webui.internal.db import Base, get_db_context
-from open_webui.models.users import Users, UserResponse
-
+from open_webui.models.users import UserResponse, Users
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Column, Text, JSON, Index
+from sqlalchemy import JSON, BigInteger, Column, Text
+from sqlalchemy.orm import Session
 
 ####################
 # PromptHistory DB Schema
@@ -19,7 +16,7 @@ from sqlalchemy import BigInteger, Column, Text, JSON, Index
 
 
 class PromptHistory(Base):
-    __tablename__ = "prompt_history"
+    __tablename__ = 'prompt_history'
 
     id = Column(Text, primary_key=True)
     prompt_id = Column(Text, nullable=False, index=True)
@@ -33,10 +30,10 @@ class PromptHistory(Base):
 class PromptHistoryModel(BaseModel):
     id: str
     prompt_id: str
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
     snapshot: dict
     user_id: str
-    commit_message: Optional[str] = None
+    commit_message: str | None = None
     created_at: int
 
     model_config = ConfigDict(from_attributes=True)
@@ -45,7 +42,7 @@ class PromptHistoryModel(BaseModel):
 class PromptHistoryResponse(PromptHistoryModel):
     """Response model with user info."""
 
-    user: Optional[UserResponse] = None
+    user: UserResponse | None = None
 
 
 class PromptHistoryTable:
@@ -54,10 +51,10 @@ class PromptHistoryTable:
         prompt_id: str,
         snapshot: dict,
         user_id: str,
-        parent_id: Optional[str] = None,
-        commit_message: Optional[str] = None,
-        db: Optional[Session] = None,
-    ) -> Optional[PromptHistoryModel]:
+        parent_id: str | None = None,
+        commit_message: str | None = None,
+        db: Session | None = None,
+    ) -> PromptHistoryModel | None:
         """Create a new history entry (commit) for a prompt."""
         with get_db_context(db) as db:
             history = PromptHistory(
@@ -79,7 +76,7 @@ class PromptHistoryTable:
         prompt_id: str,
         limit: int = 50,
         offset: int = 0,
-        db: Optional[Session] = None,
+        db: Session | None = None,
     ) -> list[PromptHistoryResponse]:
         """Get all history entries for a prompt, ordered by created_at desc."""
         with get_db_context(db) as db:
@@ -100,11 +97,7 @@ class PromptHistoryTable:
             return [
                 PromptHistoryResponse(
                     **PromptHistoryModel.model_validate(entry).model_dump(),
-                    user=(
-                        users_dict.get(entry.user_id).model_dump()
-                        if users_dict.get(entry.user_id)
-                        else None
-                    ),
+                    user=(users_dict.get(entry.user_id).model_dump() if users_dict.get(entry.user_id) else None),
                 )
                 for entry in entries
             ]
@@ -112,13 +105,11 @@ class PromptHistoryTable:
     def get_history_entry_by_id(
         self,
         history_id: str,
-        db: Optional[Session] = None,
-    ) -> Optional[PromptHistoryModel]:
+        db: Session | None = None,
+    ) -> PromptHistoryModel | None:
         """Get a specific history entry by ID."""
         with get_db_context(db) as db:
-            entry = (
-                db.query(PromptHistory).filter(PromptHistory.id == history_id).first()
-            )
+            entry = db.query(PromptHistory).filter(PromptHistory.id == history_id).first()
             if entry:
                 return PromptHistoryModel.model_validate(entry)
             return None
@@ -126,8 +117,8 @@ class PromptHistoryTable:
     def get_latest_history_entry(
         self,
         prompt_id: str,
-        db: Optional[Session] = None,
-    ) -> Optional[PromptHistoryModel]:
+        db: Session | None = None,
+    ) -> PromptHistoryModel | None:
         """Get the most recent history entry for a prompt."""
         with get_db_context(db) as db:
             entry = (
@@ -143,27 +134,21 @@ class PromptHistoryTable:
     def get_history_count(
         self,
         prompt_id: str,
-        db: Optional[Session] = None,
+        db: Session | None = None,
     ) -> int:
         """Get the number of history entries for a prompt."""
         with get_db_context(db) as db:
-            return (
-                db.query(PromptHistory)
-                .filter(PromptHistory.prompt_id == prompt_id)
-                .count()
-            )
+            return db.query(PromptHistory).filter(PromptHistory.prompt_id == prompt_id).count()
 
     def compute_diff(
         self,
         from_id: str,
         to_id: str,
-        db: Optional[Session] = None,
-    ) -> Optional[dict]:
+        db: Session | None = None,
+    ) -> dict | None:
         """Compute diff between two history entries."""
         with get_db_context(db) as db:
-            from_entry = (
-                db.query(PromptHistory).filter(PromptHistory.id == from_id).first()
-            )
+            from_entry = db.query(PromptHistory).filter(PromptHistory.id == from_id).first()
             to_entry = db.query(PromptHistory).filter(PromptHistory.id == to_id).first()
 
             if not from_entry or not to_entry:
@@ -173,45 +158,43 @@ class PromptHistoryTable:
             to_snapshot = to_entry.snapshot
 
             # Compute diff for content field
-            from_content = from_snapshot.get("content", "")
-            to_content = to_snapshot.get("content", "")
+            from_content = from_snapshot.get('content', '')
+            to_content = to_snapshot.get('content', '')
 
             diff_lines = list(
                 difflib.unified_diff(
                     from_content.splitlines(keepends=True),
                     to_content.splitlines(keepends=True),
-                    fromfile=f"v{from_id[:8]}",
-                    tofile=f"v{to_id[:8]}",
-                    lineterm="",
+                    fromfile=f'v{from_id[:8]}',
+                    tofile=f'v{to_id[:8]}',
+                    lineterm='',
                 )
             )
 
             return {
-                "from_id": from_id,
-                "to_id": to_id,
-                "from_snapshot": from_snapshot,
-                "to_snapshot": to_snapshot,
-                "content_diff": diff_lines,
-                "name_changed": from_snapshot.get("name") != to_snapshot.get("name"),
+                'from_id': from_id,
+                'to_id': to_id,
+                'from_snapshot': from_snapshot,
+                'to_snapshot': to_snapshot,
+                'content_diff': diff_lines,
+                'name_changed': from_snapshot.get('name') != to_snapshot.get('name'),
             }
 
     def delete_history_by_prompt_id(
         self,
         prompt_id: str,
-        db: Optional[Session] = None,
+        db: Session | None = None,
     ) -> bool:
         """Delete all history entries for a prompt."""
         with get_db_context(db) as db:
-            db.query(PromptHistory).filter(
-                PromptHistory.prompt_id == prompt_id
-            ).delete()
+            db.query(PromptHistory).filter(PromptHistory.prompt_id == prompt_id).delete()
             db.commit()
             return True
 
     def delete_history_entry(
         self,
         history_id: str,
-        db: Optional[Session] = None,
+        db: Session | None = None,
     ) -> bool:
         """Delete a history entry and reparent its children to grandparent."""
         with get_db_context(db) as db:
