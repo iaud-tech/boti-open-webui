@@ -1,26 +1,20 @@
-import os
-from pathlib import Path
-from typing import Optional
 import logging
+from typing import Optional
 
-from open_webui.models.users import Users, UserInfoResponse
+from fastapi import APIRouter, Depends, HTTPException, status
+from open_webui.constants import ERROR_MESSAGES
+from open_webui.internal.db import get_session
 from open_webui.models.groups import (
-    Groups,
     GroupForm,
     GroupInfoResponse,
-    GroupUpdateForm,
     GroupResponse,
+    Groups,
+    GroupUpdateForm,
     UserIdsForm,
 )
-
-from open_webui.config import CACHE_DIR
-from open_webui.constants import ERROR_MESSAGES
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-
-from open_webui.internal.db import get_session
-from sqlalchemy.orm import Session
-
+from open_webui.models.users import UserInfoResponse, Users
 from open_webui.utils.auth import get_admin_user, get_verified_user
+from sqlalchemy.orm import Session
 
 log = logging.getLogger(__name__)
 
@@ -31,20 +25,19 @@ router = APIRouter()
 ############################
 
 
-@router.get("/", response_model=list[GroupResponse])
+@router.get('/', response_model=list[GroupResponse])
 async def get_groups(
-    share: Optional[bool] = None,
+    share: bool | None = None,
     user=Depends(get_verified_user),
     db: Session = Depends(get_session),
 ):
-
     filter = {}
 
     # Admins can share to all groups regardless of share setting
-    if user.role != "admin":
-        filter["member_id"] = user.id
+    if user.role != 'admin':
+        filter['member_id'] = user.id
         if share is not None:
-            filter["share"] = share
+            filter['share'] = share
 
     groups = Groups.get_groups(filter=filter, db=db)
 
@@ -56,7 +49,7 @@ async def get_groups(
 ############################
 
 
-@router.post("/create", response_model=Optional[GroupResponse])
+@router.post('/create', response_model=Optional[GroupResponse])
 async def create_new_group(
     form_data: GroupForm,
     user=Depends(get_admin_user),
@@ -72,10 +65,10 @@ async def create_new_group(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ERROR_MESSAGES.DEFAULT("Error creating group"),
+                detail=ERROR_MESSAGES.DEFAULT('Error creating group'),
             )
     except Exception as e:
-        log.exception(f"Error creating a new group: {e}")
+        log.exception(f'Error creating a new group: {e}')
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT(e),
@@ -87,10 +80,8 @@ async def create_new_group(
 ############################
 
 
-@router.get("/id/{id}", response_model=Optional[GroupResponse])
-async def get_group_by_id(
-    id: str, user=Depends(get_admin_user), db: Session = Depends(get_session)
-):
+@router.get('/id/{id}', response_model=Optional[GroupResponse])
+async def get_group_by_id(id: str, user=Depends(get_admin_user), db: Session = Depends(get_session)):
     group = Groups.get_group_by_id(id, db=db)
     if group:
         return GroupResponse(
@@ -104,10 +95,8 @@ async def get_group_by_id(
         )
 
 
-@router.get("/id/{id}/info", response_model=Optional[GroupInfoResponse])
-async def get_group_info_by_id(
-    id: str, user=Depends(get_verified_user), db: Session = Depends(get_session)
-):
+@router.get('/id/{id}/info', response_model=Optional[GroupInfoResponse])
+async def get_group_info_by_id(id: str, user=Depends(get_verified_user), db: Session = Depends(get_session)):
     group = Groups.get_group_by_id(id, db=db)
     if group:
         return GroupInfoResponse(
@@ -131,10 +120,8 @@ class GroupExportResponse(GroupResponse):
     pass
 
 
-@router.get("/id/{id}/export", response_model=Optional[GroupExportResponse])
-async def export_group_by_id(
-    id: str, user=Depends(get_admin_user), db: Session = Depends(get_session)
-):
+@router.get('/id/{id}/export', response_model=Optional[GroupExportResponse])
+async def export_group_by_id(id: str, user=Depends(get_admin_user), db: Session = Depends(get_session)):
     group = Groups.get_group_by_id(id, db=db)
     if group:
         return GroupExportResponse(
@@ -154,15 +141,13 @@ async def export_group_by_id(
 ############################
 
 
-@router.post("/id/{id}/users", response_model=list[UserInfoResponse])
-async def get_users_in_group(
-    id: str, user=Depends(get_admin_user), db: Session = Depends(get_session)
-):
+@router.post('/id/{id}/users', response_model=list[UserInfoResponse])
+async def get_users_in_group(id: str, user=Depends(get_admin_user), db: Session = Depends(get_session)):
     try:
         users = Users.get_users_by_group_id(id, db=db)
         return users
     except Exception as e:
-        log.exception(f"Error adding users to group {id}: {e}")
+        log.exception(f'Error adding users to group {id}: {e}')
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT(e),
@@ -174,7 +159,7 @@ async def get_users_in_group(
 ############################
 
 
-@router.post("/id/{id}/update", response_model=Optional[GroupResponse])
+@router.post('/id/{id}/update', response_model=Optional[GroupResponse])
 async def update_group_by_id(
     id: str,
     form_data: GroupUpdateForm,
@@ -191,10 +176,10 @@ async def update_group_by_id(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ERROR_MESSAGES.DEFAULT("Error updating group"),
+                detail=ERROR_MESSAGES.DEFAULT('Error updating group'),
             )
     except Exception as e:
-        log.exception(f"Error updating group {id}: {e}")
+        log.exception(f'Error updating group {id}: {e}')
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT(e),
@@ -206,7 +191,7 @@ async def update_group_by_id(
 ############################
 
 
-@router.post("/id/{id}/users/add", response_model=Optional[GroupResponse])
+@router.post('/id/{id}/users/add', response_model=Optional[GroupResponse])
 async def add_user_to_group(
     id: str,
     form_data: UserIdsForm,
@@ -226,17 +211,17 @@ async def add_user_to_group(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ERROR_MESSAGES.DEFAULT("Error adding users to group"),
+                detail=ERROR_MESSAGES.DEFAULT('Error adding users to group'),
             )
     except Exception as e:
-        log.exception(f"Error adding users to group {id}: {e}")
+        log.exception(f'Error adding users to group {id}: {e}')
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT(e),
         )
 
 
-@router.post("/id/{id}/users/remove", response_model=Optional[GroupResponse])
+@router.post('/id/{id}/users/remove', response_model=Optional[GroupResponse])
 async def remove_users_from_group(
     id: str,
     form_data: UserIdsForm,
@@ -253,10 +238,10 @@ async def remove_users_from_group(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ERROR_MESSAGES.DEFAULT("Error removing users from group"),
+                detail=ERROR_MESSAGES.DEFAULT('Error removing users from group'),
             )
     except Exception as e:
-        log.exception(f"Error removing users from group {id}: {e}")
+        log.exception(f'Error removing users from group {id}: {e}')
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT(e),
@@ -268,10 +253,8 @@ async def remove_users_from_group(
 ############################
 
 
-@router.delete("/id/{id}/delete", response_model=bool)
-async def delete_group_by_id(
-    id: str, user=Depends(get_admin_user), db: Session = Depends(get_session)
-):
+@router.delete('/id/{id}/delete', response_model=bool)
+async def delete_group_by_id(id: str, user=Depends(get_admin_user), db: Session = Depends(get_session)):
     try:
         result = Groups.delete_group_by_id(id, db=db)
         if result:
@@ -279,10 +262,10 @@ async def delete_group_by_id(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ERROR_MESSAGES.DEFAULT("Error deleting group"),
+                detail=ERROR_MESSAGES.DEFAULT('Error deleting group'),
             )
     except Exception as e:
-        log.exception(f"Error deleting group {id}: {e}")
+        log.exception(f'Error deleting group {id}: {e}')
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT(e),

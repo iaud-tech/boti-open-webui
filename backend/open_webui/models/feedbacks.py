@@ -1,14 +1,12 @@
 import logging
 import time
 import uuid
-from typing import Optional
 
-from sqlalchemy.orm import Session
-from open_webui.internal.db import Base, JSONField, get_db, get_db_context
+from open_webui.internal.db import Base, get_db_context
 from open_webui.models.users import User
-
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Column, Text, JSON, Boolean
+from sqlalchemy import JSON, BigInteger, Column, Text
+from sqlalchemy.orm import Session
 
 log = logging.getLogger(__name__)
 
@@ -19,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 class Feedback(Base):
-    __tablename__ = "feedback"
+    __tablename__ = 'feedback'
     id = Column(Text, primary_key=True, unique=True)
     user_id = Column(Text)
     version = Column(BigInteger, default=0)
@@ -36,9 +34,9 @@ class FeedbackModel(BaseModel):
     user_id: str
     version: int
     type: str
-    data: Optional[dict] = None
-    meta: Optional[dict] = None
-    snapshot: Optional[dict] = None
+    data: dict | None = None
+    meta: dict | None = None
+    snapshot: dict | None = None
     created_at: int
     updated_at: int
 
@@ -55,8 +53,8 @@ class FeedbackResponse(BaseModel):
     user_id: str
     version: int
     type: str
-    data: Optional[dict] = None
-    meta: Optional[dict] = None
+    data: dict | None = None
+    meta: dict | None = None
     created_at: int
     updated_at: int
 
@@ -72,44 +70,44 @@ class LeaderboardFeedbackData(BaseModel):
     """Minimal feedback data for leaderboard computation (excludes snapshot/meta)."""
 
     id: str
-    data: Optional[dict] = None
+    data: dict | None = None
 
 
 class RatingData(BaseModel):
-    rating: Optional[str | int] = None
-    model_id: Optional[str] = None
-    sibling_model_ids: Optional[list[str]] = None
-    reason: Optional[str] = None
-    comment: Optional[str] = None
-    model_config = ConfigDict(extra="allow", protected_namespaces=())
+    rating: str | int | None = None
+    model_id: str | None = None
+    sibling_model_ids: list[str] | None = None
+    reason: str | None = None
+    comment: str | None = None
+    model_config = ConfigDict(extra='allow', protected_namespaces=())
 
 
 class MetaData(BaseModel):
-    arena: Optional[bool] = None
-    chat_id: Optional[str] = None
-    message_id: Optional[str] = None
-    tags: Optional[list[str]] = None
-    model_config = ConfigDict(extra="allow")
+    arena: bool | None = None
+    chat_id: str | None = None
+    message_id: str | None = None
+    tags: list[str] | None = None
+    model_config = ConfigDict(extra='allow')
 
 
 class SnapshotData(BaseModel):
-    chat: Optional[dict] = None
-    model_config = ConfigDict(extra="allow")
+    chat: dict | None = None
+    model_config = ConfigDict(extra='allow')
 
 
 class FeedbackForm(BaseModel):
     type: str
-    data: Optional[RatingData] = None
-    meta: Optional[dict] = None
-    snapshot: Optional[SnapshotData] = None
-    model_config = ConfigDict(extra="allow")
+    data: RatingData | None = None
+    meta: dict | None = None
+    snapshot: SnapshotData | None = None
+    model_config = ConfigDict(extra='allow')
 
 
 class UserResponse(BaseModel):
     id: str
     name: str
     email: str
-    role: str = "pending"
+    role: str = 'pending'
 
     last_active_at: int  # timestamp in epoch
     updated_at: int  # timestamp in epoch
@@ -119,7 +117,7 @@ class UserResponse(BaseModel):
 
 
 class FeedbackUserResponse(FeedbackResponse):
-    user: Optional[UserResponse] = None
+    user: UserResponse | None = None
 
 
 class FeedbackListResponse(BaseModel):
@@ -140,18 +138,18 @@ class ModelHistoryResponse(BaseModel):
 
 class FeedbackTable:
     def insert_new_feedback(
-        self, user_id: str, form_data: FeedbackForm, db: Optional[Session] = None
-    ) -> Optional[FeedbackModel]:
+        self, user_id: str, form_data: FeedbackForm, db: Session | None = None
+    ) -> FeedbackModel | None:
         with get_db_context(db) as db:
             id = str(uuid.uuid4())
             feedback = FeedbackModel(
                 **{
-                    "id": id,
-                    "user_id": user_id,
-                    "version": 0,
+                    'id': id,
+                    'user_id': user_id,
+                    'version': 0,
                     **form_data.model_dump(),
-                    "created_at": int(time.time()),
-                    "updated_at": int(time.time()),
+                    'created_at': int(time.time()),
+                    'updated_at': int(time.time()),
                 }
             )
             try:
@@ -164,12 +162,10 @@ class FeedbackTable:
                 else:
                     return None
             except Exception as e:
-                log.exception(f"Error creating a new feedback: {e}")
+                log.exception(f'Error creating a new feedback: {e}')
                 return None
 
-    def get_feedback_by_id(
-        self, id: str, db: Optional[Session] = None
-    ) -> Optional[FeedbackModel]:
+    def get_feedback_by_id(self, id: str, db: Session | None = None) -> FeedbackModel | None:
         try:
             with get_db_context(db) as db:
                 feedback = db.query(Feedback).filter_by(id=id).first()
@@ -179,9 +175,7 @@ class FeedbackTable:
         except Exception:
             return None
 
-    def get_feedback_by_id_and_user_id(
-        self, id: str, user_id: str, db: Optional[Session] = None
-    ) -> Optional[FeedbackModel]:
+    def get_feedback_by_id_and_user_id(self, id: str, user_id: str, db: Session | None = None) -> FeedbackModel | None:
         try:
             with get_db_context(db) as db:
                 feedback = db.query(Feedback).filter_by(id=id, user_id=user_id).first()
@@ -191,16 +185,14 @@ class FeedbackTable:
         except Exception:
             return None
 
-    def get_feedbacks_by_chat_id(
-        self, chat_id: str, db: Optional[Session] = None
-    ) -> list[FeedbackModel]:
+    def get_feedbacks_by_chat_id(self, chat_id: str, db: Session | None = None) -> list[FeedbackModel]:
         """Get all feedbacks for a specific chat."""
         try:
             with get_db_context(db) as db:
                 # meta.chat_id stores the chat reference
                 feedbacks = (
                     db.query(Feedback)
-                    .filter(Feedback.meta["chat_id"].as_string() == chat_id)
+                    .filter(Feedback.meta['chat_id'].as_string() == chat_id)
                     .order_by(Feedback.created_at.desc())
                     .all()
                 )
@@ -213,42 +205,34 @@ class FeedbackTable:
         filter: dict = {},
         skip: int = 0,
         limit: int = 30,
-        db: Optional[Session] = None,
+        db: Session | None = None,
     ) -> FeedbackListResponse:
         with get_db_context(db) as db:
             query = db.query(Feedback, User).join(User, Feedback.user_id == User.id)
 
             if filter:
-                order_by = filter.get("order_by")
-                direction = filter.get("direction")
+                order_by = filter.get('order_by')
+                direction = filter.get('direction')
 
-                if order_by == "username":
-                    if direction == "asc":
+                if order_by == 'username':
+                    if direction == 'asc':
                         query = query.order_by(User.name.asc())
                     else:
                         query = query.order_by(User.name.desc())
-                elif order_by == "model_id":
+                elif order_by == 'model_id':
                     # it's stored in feedback.data['model_id']
-                    if direction == "asc":
-                        query = query.order_by(
-                            Feedback.data["model_id"].as_string().asc()
-                        )
+                    if direction == 'asc':
+                        query = query.order_by(Feedback.data['model_id'].as_string().asc())
                     else:
-                        query = query.order_by(
-                            Feedback.data["model_id"].as_string().desc()
-                        )
-                elif order_by == "rating":
+                        query = query.order_by(Feedback.data['model_id'].as_string().desc())
+                elif order_by == 'rating':
                     # it's stored in feedback.data['rating']
-                    if direction == "asc":
-                        query = query.order_by(
-                            Feedback.data["rating"].as_string().asc()
-                        )
+                    if direction == 'asc':
+                        query = query.order_by(Feedback.data['rating'].as_string().asc())
                     else:
-                        query = query.order_by(
-                            Feedback.data["rating"].as_string().desc()
-                        )
-                elif order_by == "updated_at":
-                    if direction == "asc":
+                        query = query.order_by(Feedback.data['rating'].as_string().desc())
+                elif order_by == 'updated_at':
+                    if direction == 'asc':
                         query = query.order_by(Feedback.updated_at.asc())
                     else:
                         query = query.order_by(Feedback.updated_at.desc())
@@ -270,24 +254,18 @@ class FeedbackTable:
             for feedback, user in items:
                 feedback_model = FeedbackModel.model_validate(feedback)
                 user_model = UserResponse.model_validate(user)
-                feedbacks.append(
-                    FeedbackUserResponse(**feedback_model.model_dump(), user=user_model)
-                )
+                feedbacks.append(FeedbackUserResponse(**feedback_model.model_dump(), user=user_model))
 
             return FeedbackListResponse(items=feedbacks, total=total)
 
-    def get_all_feedbacks(self, db: Optional[Session] = None) -> list[FeedbackModel]:
+    def get_all_feedbacks(self, db: Session | None = None) -> list[FeedbackModel]:
         with get_db_context(db) as db:
             return [
                 FeedbackModel.model_validate(feedback)
-                for feedback in db.query(Feedback)
-                .order_by(Feedback.updated_at.desc())
-                .all()
+                for feedback in db.query(Feedback).order_by(Feedback.updated_at.desc()).all()
             ]
 
-    def get_all_feedback_ids(
-        self, db: Optional[Session] = None
-    ) -> list[FeedbackIdResponse]:
+    def get_all_feedback_ids(self, db: Session | None = None) -> list[FeedbackIdResponse]:
         with get_db_context(db) as db:
             return [
                 FeedbackIdResponse(
@@ -306,26 +284,23 @@ class FeedbackTable:
                 .all()
             ]
 
-    def get_feedbacks_for_leaderboard(
-        self, db: Optional[Session] = None
-    ) -> list[LeaderboardFeedbackData]:
+    def get_feedbacks_for_leaderboard(self, db: Session | None = None) -> list[LeaderboardFeedbackData]:
         """Fetch only id and data for leaderboard computation (excludes snapshot/meta)."""
         with get_db_context(db) as db:
             return [
-                LeaderboardFeedbackData(id=row.id, data=row.data)
-                for row in db.query(Feedback.id, Feedback.data).all()
+                LeaderboardFeedbackData(id=row.id, data=row.data) for row in db.query(Feedback.id, Feedback.data).all()
             ]
 
     def get_model_evaluation_history(
-        self, model_id: str, days: int = 30, db: Optional[Session] = None
+        self, model_id: str, days: int = 30, db: Session | None = None
     ) -> list[ModelHistoryEntry]:
         """
         Get daily wins/losses for a specific model over the past N days.
         If days=0, returns all time data starting from first feedback.
         Returns: [{"date": "2026-01-08", "won": 5, "lost": 2}, ...]
         """
-        from datetime import datetime, timedelta
         from collections import defaultdict
+        from datetime import datetime, timedelta
 
         with get_db_context(db) as db:
             if days == 0:
@@ -333,30 +308,26 @@ class FeedbackTable:
                 rows = db.query(Feedback.created_at, Feedback.data).all()
             else:
                 cutoff = int(time.time()) - (days * 86400)
-                rows = (
-                    db.query(Feedback.created_at, Feedback.data)
-                    .filter(Feedback.created_at >= cutoff)
-                    .all()
-                )
+                rows = db.query(Feedback.created_at, Feedback.data).filter(Feedback.created_at >= cutoff).all()
 
-        daily_counts = defaultdict(lambda: {"won": 0, "lost": 0})
+        daily_counts = defaultdict(lambda: {'won': 0, 'lost': 0})
         first_date = None
 
         for created_at, data in rows:
             if not data:
                 continue
-            if data.get("model_id") != model_id:
+            if data.get('model_id') != model_id:
                 continue
 
-            rating_str = str(data.get("rating", ""))
-            if rating_str not in ("1", "-1"):
+            rating_str = str(data.get('rating', ''))
+            if rating_str not in ('1', '-1'):
                 continue
 
-            date_str = datetime.fromtimestamp(created_at).strftime("%Y-%m-%d")
-            if rating_str == "1":
-                daily_counts[date_str]["won"] += 1
+            date_str = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d')
+            if rating_str == '1':
+                daily_counts[date_str]['won'] += 1
             else:
-                daily_counts[date_str]["lost"] += 1
+                daily_counts[date_str]['lost'] += 1
 
             # Track first date for this model
             if first_date is None or date_str < first_date:
@@ -368,7 +339,7 @@ class FeedbackTable:
 
         if days == 0 and first_date:
             # All time: start from first feedback date
-            start_date = datetime.strptime(first_date, "%Y-%m-%d").date()
+            start_date = datetime.strptime(first_date, '%Y-%m-%d').date()
             num_days = (today - start_date).days + 1
         else:
             # Fixed range
@@ -377,41 +348,29 @@ class FeedbackTable:
 
         for i in range(num_days):
             d = start_date + timedelta(days=i)
-            date_str = d.strftime("%Y-%m-%d")
-            counts = daily_counts.get(date_str, {"won": 0, "lost": 0})
-            result.append(
-                ModelHistoryEntry(date=date_str, won=counts["won"], lost=counts["lost"])
-            )
+            date_str = d.strftime('%Y-%m-%d')
+            counts = daily_counts.get(date_str, {'won': 0, 'lost': 0})
+            result.append(ModelHistoryEntry(date=date_str, won=counts['won'], lost=counts['lost']))
 
         return result
 
-    def get_feedbacks_by_type(
-        self, type: str, db: Optional[Session] = None
-    ) -> list[FeedbackModel]:
+    def get_feedbacks_by_type(self, type: str, db: Session | None = None) -> list[FeedbackModel]:
         with get_db_context(db) as db:
             return [
                 FeedbackModel.model_validate(feedback)
-                for feedback in db.query(Feedback)
-                .filter_by(type=type)
-                .order_by(Feedback.updated_at.desc())
-                .all()
+                for feedback in db.query(Feedback).filter_by(type=type).order_by(Feedback.updated_at.desc()).all()
             ]
 
-    def get_feedbacks_by_user_id(
-        self, user_id: str, db: Optional[Session] = None
-    ) -> list[FeedbackModel]:
+    def get_feedbacks_by_user_id(self, user_id: str, db: Session | None = None) -> list[FeedbackModel]:
         with get_db_context(db) as db:
             return [
                 FeedbackModel.model_validate(feedback)
-                for feedback in db.query(Feedback)
-                .filter_by(user_id=user_id)
-                .order_by(Feedback.updated_at.desc())
-                .all()
+                for feedback in db.query(Feedback).filter_by(user_id=user_id).order_by(Feedback.updated_at.desc()).all()
             ]
 
     def update_feedback_by_id(
-        self, id: str, form_data: FeedbackForm, db: Optional[Session] = None
-    ) -> Optional[FeedbackModel]:
+        self, id: str, form_data: FeedbackForm, db: Session | None = None
+    ) -> FeedbackModel | None:
         with get_db_context(db) as db:
             feedback = db.query(Feedback).filter_by(id=id).first()
             if not feedback:
@@ -434,8 +393,8 @@ class FeedbackTable:
         id: str,
         user_id: str,
         form_data: FeedbackForm,
-        db: Optional[Session] = None,
-    ) -> Optional[FeedbackModel]:
+        db: Session | None = None,
+    ) -> FeedbackModel | None:
         with get_db_context(db) as db:
             feedback = db.query(Feedback).filter_by(id=id, user_id=user_id).first()
             if not feedback:
@@ -453,7 +412,7 @@ class FeedbackTable:
             db.commit()
             return FeedbackModel.model_validate(feedback)
 
-    def delete_feedback_by_id(self, id: str, db: Optional[Session] = None) -> bool:
+    def delete_feedback_by_id(self, id: str, db: Session | None = None) -> bool:
         with get_db_context(db) as db:
             feedback = db.query(Feedback).filter_by(id=id).first()
             if not feedback:
@@ -462,9 +421,7 @@ class FeedbackTable:
             db.commit()
             return True
 
-    def delete_feedback_by_id_and_user_id(
-        self, id: str, user_id: str, db: Optional[Session] = None
-    ) -> bool:
+    def delete_feedback_by_id_and_user_id(self, id: str, user_id: str, db: Session | None = None) -> bool:
         with get_db_context(db) as db:
             feedback = db.query(Feedback).filter_by(id=id, user_id=user_id).first()
             if not feedback:
@@ -473,15 +430,13 @@ class FeedbackTable:
             db.commit()
             return True
 
-    def delete_feedbacks_by_user_id(
-        self, user_id: str, db: Optional[Session] = None
-    ) -> bool:
+    def delete_feedbacks_by_user_id(self, user_id: str, db: Session | None = None) -> bool:
         with get_db_context(db) as db:
             result = db.query(Feedback).filter_by(user_id=user_id).delete()
             db.commit()
             return result > 0
 
-    def delete_all_feedbacks(self, db: Optional[Session] = None) -> bool:
+    def delete_all_feedbacks(self, db: Session | None = None) -> bool:
         with get_db_context(db) as db:
             result = db.query(Feedback).delete()
             db.commit()
