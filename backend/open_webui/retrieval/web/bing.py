@@ -1,6 +1,8 @@
 import argparse
 import logging
+import os
 from pprint import pprint
+from typing import Optional
 
 import requests
 from open_webui.retrieval.web.main import SearchResult, get_filtered_results
@@ -17,7 +19,7 @@ def search_bing(
     locale: str,
     query: str,
     count: int,
-    filter_list: list[str] | None = None,
+    filter_list: Optional[list[str]] = None,
 ) -> list[SearchResult]:
     mkt = locale
     params = {'q': query, 'mkt': mkt, 'count': count}
@@ -62,5 +64,12 @@ def main():
 
     args = parser.parse_args()
 
-    results = search_bing(args.locale, args.query, args.count, args.filter)
+    results = search_bing(
+        os.environ.get('BING_SEARCH_V7_SUBSCRIPTION_KEY', ''),
+        os.environ.get('BING_SEARCH_V7_ENDPOINT', 'https://api.bing.microsoft.com/v7.0/search'),
+        args.locale,
+        args.query,
+        args.count,
+        args.filter,
+    )
     pprint(results)

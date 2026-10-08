@@ -1,12 +1,39 @@
-import json
+"""Redis-backed distributed data structures for WebSocket state management."""
+
+from __future__ import annotations
+
+import hashlib
+import logging
 import uuid
 
 import pycrdt as Y
 from open_webui.env import REDIS_KEY_PREFIX
+from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.redis import get_redis_connection
+from redis.exceptions import RedisClusterException, RedisError
+
+log = logging.getLogger(__name__)
+
+YDOC_KEY_PREFIX = f'{REDIS_KEY_PREFIX}:ydoc:documents'
+SCAN_BATCH_SIZE = 200
 
 
 class RedisLock:
+    """Distributed lock backed by a Redis SET with NX/EX semantics."""
+
+    _RENEW_SCRIPT = """
+    if redis.call('get', KEYS[1]) == ARGV[1] then
+        return redis.call('expire', KEYS[1], ARGV[2])
+    end
+    return 0
+    """
+    _RELEASE_SCRIPT = """
+    if redis.call('get', KEYS[1]) == ARGV[1] then
+        return redis.call('del', KEYS[1])
+    end
+    return 0
+    """
+
     def __init__(
         self,
         redis_url,
@@ -32,18 +59,26 @@ class RedisLock:
         return self.lock_obtained
 
     def renew_lock(self):
-        # xx=True will only set this key if it _has_ already been set
-        return self.redis.set(self.lock_name, self.lock_id, xx=True, ex=self.timeout_secs)
+        return bool(self.redis.eval(self._RENEW_SCRIPT, 1, self.lock_name, self.lock_id, self.timeout_secs))
 
     def release_lock(self):
-        lock_value = self.redis.get(self.lock_name)
-        if lock_value and lock_value == self.lock_id:
-            self.redis.delete(self.lock_name)
+        try:
+            self.redis.eval(self._RELEASE_SCRIPT, 1, self.lock_name, self.lock_id)
+        except (RedisClusterException, RedisError) as e:
+            log.warning('Failed to release lock %s; it expires on its own: %s', self.lock_name, e)
 
 
 class RedisDict:
-    def __init__(self, name, redis_url, redis_sentinels=[], redis_cluster=False):
+    def __init__(
+        self,
+        name,
+        redis_url,
+        redis_sentinels=[],
+        redis_cluster=False,
+        cache_set_signature=False,
+    ):
         self.name = name
+        self._signature_name = f'{name}:signature' if cache_set_signature else None
         self.redis = get_redis_connection(
             redis_url,
             redis_sentinels,
@@ -52,19 +87,23 @@ class RedisDict:
         )
 
     def __setitem__(self, key, value):
-        serialized_value = json.dumps(value)
+        serialized_value = JSONCodec.dumps(value)
         self.redis.hset(self.name, key, serialized_value)
+        if self._signature_name:
+            self.redis.delete(self._signature_name)
 
     def __getitem__(self, key):
         value = self.redis.hget(self.name, key)
         if value is None:
             raise KeyError(key)
-        return json.loads(value)
+        return JSONCodec.loads(value)
 
     def __delitem__(self, key):
         result = self.redis.hdel(self.name, key)
         if result == 0:
             raise KeyError(key)
+        if self._signature_name:
+            self.redis.delete(self._signature_name)
 
     def __contains__(self, key):
         return self.redis.hexists(self.name, key)
@@ -76,15 +115,49 @@ class RedisDict:
         return self.redis.hkeys(self.name)
 
     def values(self):
-        return [json.loads(v) for v in self.redis.hvals(self.name)]
+        return [JSONCodec.loads(v) for v in self.redis.hvals(self.name)]
 
     def items(self):
-        return [(k, json.loads(v)) for k, v in self.redis.hgetall(self.name).items()]
+        return [(k, JSONCodec.loads(v)) for k, v in self.redis.hgetall(self.name).items()]
+
+    def scan_batches(self):
+        """Yield lists of (key, value) pairs via incremental HSCAN; a field may repeat across batches."""
+        cursor = 0
+        while True:
+            cursor, batch = self.redis.hscan(self.name, cursor, count=SCAN_BATCH_SIZE)
+            if batch:
+                yield [(k, JSONCodec.loads(v)) for k, v in batch.items()]
+            if cursor == 0:
+                break
+
+    def delete_many(self, *keys):
+        """Delete fields in one HDEL; no keys is a no-op (HDEL rejects an empty field list)."""
+        if keys:
+            self.redis.hdel(self.name, *keys)
+            if self._signature_name:
+                self.redis.delete(self._signature_name)
 
     def set(self, mapping: dict):
         if not mapping:
-            self.redis.delete(self.name)
+            self.clear()
             return
+
+        # Serialize values once — reused for both the fingerprint and the write.
+        serialized = {k: JSONCodec.dumps(v) for k, v in mapping.items()}
+        digest = hashlib.sha256()
+        for key in sorted(serialized):
+            digest.update(key.encode())
+            digest.update(b'\0')
+            digest.update(serialized[key].encode())
+            digest.update(b'\0')
+        content_digest = digest.hexdigest()
+
+        if self._signature_name:
+            stored_signature = self.redis.get(self._signature_name)
+            if stored_signature and stored_signature.startswith(f'{content_digest}:'):
+                return
+            # Cleared first so readers refetch while the hash is being rewritten.
+            self.redis.delete(self._signature_name)
 
         # Fetch existing keys before writing so we know which ones to remove.
         # HKEYS is cheap — it transfers only short key strings, not large JSON values.
@@ -95,9 +168,12 @@ class RedisDict:
         # HSET first (add/update all new values), then HDEL (remove stale keys).
         # We never DELETE the whole hash — this eliminates the race window
         # where concurrent readers would see an empty models dict.
-        self.redis.hset(self.name, mapping={k: json.dumps(v) for k, v in mapping.items()})
+        self.redis.hset(self.name, mapping=serialized)
         if keys_to_remove:
             self.redis.hdel(self.name, *keys_to_remove)
+
+        if self._signature_name:
+            self.redis.set(self._signature_name, f'{content_digest}:{uuid.uuid4().hex}')
 
     def get(self, key, default=None):
         try:
@@ -106,7 +182,11 @@ class RedisDict:
             return default
 
     def clear(self):
-        self.redis.delete(self.name)
+        if self._signature_name:
+            self.redis.delete(self.name)
+            self.redis.delete(self._signature_name)
+        else:
+            self.redis.delete(self.name)
 
     def update(self, other=None, **kwargs):
         if other is not None:
@@ -121,13 +201,50 @@ class RedisDict:
         return self[key]
 
 
+class CachedRedisDict(RedisDict):
+    """Answers reads from a per-worker cache of the hash, refetched whenever its signature changes."""
+
+    def __init__(self, name: str, redis_url: str, redis_sentinels: list = [], redis_cluster: bool = False):
+        super().__init__(name, redis_url, redis_sentinels, redis_cluster, cache_set_signature=True)
+        self._cache: dict = {}
+        self._cached_signature: str | None = None
+
+    def _refresh_cache(self) -> dict:
+        stored_signature = self.redis.get(self._signature_name)
+        if stored_signature is None or stored_signature != self._cached_signature:
+            self._cache = self.redis.hgetall(self.name)
+            self._cached_signature = stored_signature
+        return self._cache
+
+    def __getitem__(self, key):
+        value = self._refresh_cache().get(key)
+        if value is None:
+            raise KeyError(key)
+        return JSONCodec.loads(value)
+
+    def __contains__(self, key):
+        return key in self._refresh_cache()
+
+    def __len__(self):
+        return len(self._refresh_cache())
+
+    def keys(self):
+        return list(self._refresh_cache().keys())
+
+    def values(self):
+        return [JSONCodec.loads(v) for v in self._refresh_cache().values()]
+
+    def items(self):
+        return [(k, JSONCodec.loads(v)) for k, v in self._refresh_cache().items()]
+
+
 class YdocManager:
     COMPACTION_THRESHOLD = 500
 
     def __init__(
         self,
         redis=None,
-        redis_key_prefix: str = f'{REDIS_KEY_PREFIX}:ydoc:documents',
+        redis_key_prefix: str = YDOC_KEY_PREFIX,
     ):
         self._updates = {}
         self._users = {}
@@ -138,7 +255,7 @@ class YdocManager:
         document_id = document_id.replace(':', '_')
         if self._redis:
             redis_key = f'{self._redis_key_prefix}:{document_id}:updates'
-            await self._redis.rpush(redis_key, json.dumps(list(update)))
+            await self._redis.rpush(redis_key, JSONCodec.dumps(list(update)))
             list_len = await self._redis.llen(redis_key)
             if list_len >= self.COMPACTION_THRESHOLD:
                 await self._compact_updates_redis(document_id)
@@ -158,8 +275,8 @@ class YdocManager:
         mid = len(all_updates) // 2
         ydoc = Y.Doc()
         for raw in all_updates[:mid]:
-            ydoc.apply_update(bytes(json.loads(raw)))
-        snapshot = json.dumps(list(ydoc.get_update()))
+            ydoc.apply_update(bytes(JSONCodec.loads(raw)))
+        snapshot = JSONCodec.dumps(list(ydoc.get_update()))
         pipe = self._redis.pipeline()
         pipe.delete(redis_key)
         pipe.rpush(redis_key, snapshot, *all_updates[mid:])
@@ -182,7 +299,7 @@ class YdocManager:
         if self._redis:
             redis_key = f'{self._redis_key_prefix}:{document_id}:updates'
             updates = await self._redis.lrange(redis_key, 0, -1)
-            return [bytes(json.loads(update)) for update in updates]
+            return [bytes(JSONCodec.loads(update)) for update in updates]
         else:
             return self._updates.get(document_id, [])
 
@@ -211,6 +328,11 @@ class YdocManager:
         if self._redis:
             redis_key = f'{self._redis_key_prefix}:{document_id}:users'
             await self._redis.sadd(redis_key, user_id)
+            # Maintain a per-session reverse index so disconnect cleanup
+            # can look up only the documents this session joined, instead
+            # of issuing a cluster-wide SCAN over the entire keyspace.
+            session_key = f'{self._redis_key_prefix}:session:{user_id}:documents'
+            await self._redis.sadd(session_key, document_id)
         else:
             if document_id not in self._users:
                 self._users[document_id] = set()
@@ -222,22 +344,31 @@ class YdocManager:
         if self._redis:
             redis_key = f'{self._redis_key_prefix}:{document_id}:users'
             await self._redis.srem(redis_key, user_id)
+            # Keep the reverse index in sync.
+            session_key = f'{self._redis_key_prefix}:session:{user_id}:documents'
+            await self._redis.srem(session_key, document_id)
         else:
             if document_id in self._users and user_id in self._users[document_id]:
                 self._users[document_id].remove(user_id)
 
     async def remove_user_from_all_documents(self, user_id: str):
         if self._redis:
-            keys = []
-            async for key in self._redis.scan_iter(match=f'{self._redis_key_prefix}:*', count=100):
-                keys.append(key)
-            for key in keys:
-                if key.endswith(':users'):
-                    await self._redis.srem(key, user_id)
+            # Use the per-session reverse index instead of a cluster-wide
+            # SCAN.  This set contains only the document IDs that this
+            # session actually joined, so the cost is proportional to
+            # the session's footprint — not the total number of documents.
+            session_key = f'{self._redis_key_prefix}:session:{user_id}:documents'
+            document_ids = await self._redis.smembers(session_key)
 
-                    document_id = key.split(':')[-2]
-                    if len(await self.get_users(document_id)) == 0:
-                        await self.clear_document(document_id)
+            for document_id in document_ids:
+                users_key = f'{self._redis_key_prefix}:{document_id}:users'
+                await self._redis.srem(users_key, user_id)
+
+                if len(await self.get_users(document_id)) == 0:
+                    await self.clear_document(document_id)
+
+            # Clean up the reverse index itself.
+            await self._redis.delete(session_key)
 
         else:
             for document_id in list(self._users.keys()):

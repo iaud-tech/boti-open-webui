@@ -12,7 +12,7 @@
 	import Tooltip from '../../common/Tooltip.svelte';
 	import CellEditor from './CellEditor.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: any = getContext('i18n');
 
 	export let notebook: Record<string, unknown>;
 	export let filePath: string = '';
@@ -309,7 +309,7 @@
 								class="nb-run-btn"
 								on:click={() => runCell(i)}
 								disabled={runningCell !== null}
-								title="Run cell (⌘+Enter)"
+								title={$i18n.t('Run cell (⌘+Enter)')}
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -603,7 +603,7 @@
 	.nb-output-html :global(td),
 	.nb-output-html :global(th) {
 		border: 1px solid rgba(128, 128, 128, 0.2);
-		padding: 3px 8px;
+		padding: 0.1875rem 0.5rem;
 		text-align: left;
 	}
 	.nb-output-html :global(th) {

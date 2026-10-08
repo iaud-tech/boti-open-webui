@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from open_webui.retrieval.web.main import SearchResult, get_filtered_results
 
@@ -19,7 +20,7 @@ def search_azure(
     index_name: str,
     query: str,
     count: int,
-    filter_list: list[str] | None = None,
+    filter_list: Optional[list[str]] = None,
 ) -> list[SearchResult]:
     """
     Search using Azure AI Search.

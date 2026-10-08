@@ -1,19 +1,10 @@
-import json
 import logging
 import os
 import re
 import shutil
 from abc import ABC, abstractmethod
-from typing import BinaryIO
+from typing import BinaryIO, Dict, Tuple
 
-import boto3
-from azure.core.exceptions import ResourceNotFoundError
-from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient
-from botocore.config import Config
-from botocore.exceptions import ClientError
-from google.cloud import storage
-from google.cloud.exceptions import GoogleCloudError, NotFound
 from open_webui.config import (
     AZURE_STORAGE_CONTAINER_NAME,
     AZURE_STORAGE_ENDPOINT,
@@ -33,6 +24,19 @@ from open_webui.config import (
     UPLOAD_DIR,
 )
 from open_webui.constants import ERROR_MESSAGES
+from open_webui.utils.json_codec import JSONCodec
+
+from open_webui.env import USE_SLIM
+
+if not USE_SLIM:
+    import boto3
+    from azure.core.exceptions import ResourceNotFoundError
+    from azure.identity import DefaultAzureCredential
+    from azure.storage.blob import BlobServiceClient
+    from botocore.config import Config
+    from botocore.exceptions import ClientError
+    from google.cloud import storage
+    from google.cloud.exceptions import GoogleCloudError, NotFound
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +47,7 @@ class StorageProvider(ABC):
         pass
 
     @abstractmethod
-    def upload_file(self, file: BinaryIO, filename: str, tags: dict[str, str]) -> tuple[bytes, str]:
+    def upload_file(self, file: BinaryIO, filename: str, tags: Dict[str, str]) -> Tuple[bytes, str]:
         pass
 
     @abstractmethod
@@ -57,11 +61,11 @@ class StorageProvider(ABC):
 
 class LocalStorageProvider(StorageProvider):
     @staticmethod
-    def upload_file(file: BinaryIO, filename: str, tags: dict[str, str]) -> tuple[bytes, str]:
+    def upload_file(file: BinaryIO, filename: str, tags: Dict[str, str]) -> Tuple[bytes, str]:
         contents = file.read()
         if not contents:
             raise ValueError(ERROR_MESSAGES.EMPTY_CONTENT)
-        file_path = f'{UPLOAD_DIR}/{filename}'
+        file_path = os.path.join(UPLOAD_DIR, filename)
         with open(file_path, 'wb') as f:
             f.write(contents)
         return contents, file_path
@@ -74,8 +78,8 @@ class LocalStorageProvider(StorageProvider):
     @staticmethod
     def delete_file(file_path: str) -> None:
         """Handles deletion of the file from local storage."""
-        filename = file_path.split('/')[-1]
-        file_path = f'{UPLOAD_DIR}/{filename}'
+        filename = os.path.basename(file_path)
+        file_path = os.path.join(UPLOAD_DIR, filename)
         if os.path.isfile(file_path):
             os.remove(file_path)
         else:
@@ -138,9 +142,9 @@ class S3StorageProvider(StorageProvider):
         """Only include S3 allowed characters."""
         return re.sub(r'[^a-zA-Z0-9 äöüÄÖÜß\+\-=\._:/@]', '', s)
 
-    def upload_file(self, file: BinaryIO, filename: str, tags: dict[str, str]) -> tuple[bytes, str]:
+    def upload_file(self, file: BinaryIO, filename: str, tags: Dict[str, str]) -> Tuple[bytes, str]:
         """Handles uploading of the file to S3 storage."""
-        _, file_path = LocalStorageProvider.upload_file(file, filename, tags)
+        contents, file_path = LocalStorageProvider.upload_file(file, filename, tags)
         s3_key = os.path.join(self.key_prefix, filename)
         try:
             self.s3_client.upload_file(file_path, self.bucket_name, s3_key)
@@ -153,7 +157,7 @@ class S3StorageProvider(StorageProvider):
                     Tagging=tagging,
                 )
             return (
-                open(file_path, 'rb').read(),
+                contents,
                 f's3://{self.bucket_name}/{s3_key}',
             )
         except ClientError as e:
@@ -202,7 +206,7 @@ class S3StorageProvider(StorageProvider):
         return '/'.join(full_file_path.split('//')[1].split('/')[1:])
 
     def _get_local_file_path(self, s3_key: str) -> str:
-        return f'{UPLOAD_DIR}/{s3_key.split("/")[-1]}'
+        return os.path.join(UPLOAD_DIR, s3_key.split('/')[-1])
 
 
 class GCSStorageProvider(StorageProvider):
@@ -211,7 +215,7 @@ class GCSStorageProvider(StorageProvider):
 
         if GOOGLE_APPLICATION_CREDENTIALS_JSON:
             self.gcs_client = storage.Client.from_service_account_info(
-                info=json.loads(GOOGLE_APPLICATION_CREDENTIALS_JSON)
+                info=JSONCodec.loads(GOOGLE_APPLICATION_CREDENTIALS_JSON)
             )
         else:
             # if no credentials json is provided, credentials will be picked up from the environment
@@ -220,7 +224,7 @@ class GCSStorageProvider(StorageProvider):
             self.gcs_client = storage.Client()
         self.bucket = self.gcs_client.bucket(GCS_BUCKET_NAME)
 
-    def upload_file(self, file: BinaryIO, filename: str, tags: dict[str, str]) -> tuple[bytes, str]:
+    def upload_file(self, file: BinaryIO, filename: str, tags: Dict[str, str]) -> Tuple[bytes, str]:
         """Handles uploading of the file to GCS storage."""
         contents, file_path = LocalStorageProvider.upload_file(file, filename, tags)
         try:
@@ -234,7 +238,7 @@ class GCSStorageProvider(StorageProvider):
         """Handles downloading of the file from GCS storage."""
         try:
             filename = file_path.removeprefix('gs://').split('/')[1]
-            local_file_path = f'{UPLOAD_DIR}/{filename}'
+            local_file_path = os.path.join(UPLOAD_DIR, filename)
             blob = self.bucket.get_blob(filename)
             blob.download_to_filename(local_file_path)
 
@@ -284,7 +288,7 @@ class AzureStorageProvider(StorageProvider):
             self.blob_service_client = BlobServiceClient(account_url=self.endpoint, credential=DefaultAzureCredential())
         self.container_client = self.blob_service_client.get_container_client(self.container_name)
 
-    def upload_file(self, file: BinaryIO, filename: str, tags: dict[str, str]) -> tuple[bytes, str]:
+    def upload_file(self, file: BinaryIO, filename: str, tags: Dict[str, str]) -> Tuple[bytes, str]:
         """Handles uploading of the file to Azure Blob Storage."""
         contents, file_path = LocalStorageProvider.upload_file(file, filename, tags)
         try:
@@ -298,7 +302,7 @@ class AzureStorageProvider(StorageProvider):
         """Handles downloading of the file from Azure Blob Storage."""
         try:
             filename = file_path.split('/')[-1]
-            local_file_path = f'{UPLOAD_DIR}/{filename}'
+            local_file_path = os.path.join(UPLOAD_DIR, filename)
             blob_client = self.container_client.get_blob_client(filename)
             with open(local_file_path, 'wb') as download_file:
                 download_file.write(blob_client.download_blob().readall())
@@ -332,6 +336,10 @@ class AzureStorageProvider(StorageProvider):
 
 
 def get_storage_provider(storage_provider: str):
+    if USE_SLIM and storage_provider != 'local':
+        raise RuntimeError(
+            'Slim requires local file storage. Set STORAGE_PROVIDER=local, or use the standard image to access cloud storage.'
+        )
     if storage_provider == 'local':
         Storage = LocalStorageProvider()
     elif storage_provider == 's3':

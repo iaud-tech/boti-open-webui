@@ -86,6 +86,7 @@ export const AIAutocompletion = Extension.create({
 
 						const newState = view.state;
 						const newSelection = newState.selection;
+						if (currentPos >= newState.doc.content.size) return false;
 						const newNode = newState.doc.nodeAt(currentPos);
 
 						// Check if the node still exists and is still a paragraph
@@ -133,6 +134,8 @@ export const AIAutocompletion = Extension.create({
 				key: new PluginKey('aiAutocompletion'),
 				props: {
 					handleKeyDown: (view, event) => {
+						if (isComposing || event.isComposing || (event.key === 'Tab' && event.shiftKey))
+							return false;
 						const { state, dispatch } = view;
 						const { selection } = state;
 						const { $head } = selection;
@@ -273,7 +276,11 @@ export const AIAutocompletion = Extension.create({
 							// Iterate over all nodes in the document
 							const tr = state.tr;
 							state.doc.descendants((node, pos) => {
-								if (node.type.name === 'paragraph' && node.attrs['data-suggestion']) {
+								if (
+									node.type.name === 'paragraph' &&
+									node.attrs['data-suggestion'] &&
+									node.attrs['data-prompt']
+								) {
 									// Remove suggestion from this paragraph
 									tr.setNodeMarkup(pos, null, {
 										...node.attrs,

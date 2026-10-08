@@ -3,6 +3,7 @@ NOTE: This vector database integration is community-supported and maintained on 
 """
 
 import logging
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 from open_webui.config import (
@@ -21,6 +22,7 @@ from open_webui.retrieval.vector.main import (
     VectorDBBase,
     VectorItem,
 )
+from open_webui.retrieval.vector.utils import iter_filter_conditions, process_metadata
 from qdrant_client import QdrantClient as Qclient
 from qdrant_client.http.models import PointStruct
 from qdrant_client.models import models
@@ -28,6 +30,11 @@ from qdrant_client.models import models
 NO_LIMIT = 999999999
 
 log = logging.getLogger(__name__)
+
+
+def _metadata_filter(key: str, op: str, value: Any) -> models.FieldCondition:
+    match = models.MatchAny(any=value) if op == '$in' else models.MatchValue(value=value)
+    return models.FieldCondition(key=f'metadata.{key}', match=match)
 
 
 class QdrantClient(VectorDBBase):
@@ -118,7 +125,7 @@ class QdrantClient(VectorDBBase):
                 on_disk=self.QDRANT_ON_DISK,
             ),
         )
-        log.info(f'collection {collection_name_with_prefix} successfully created!')
+        log.info('collection %s successfully created!', collection_name_with_prefix)
 
     def _create_collection_if_not_exists(self, collection_name, dimension):
         if not self.has_collection(collection_name=collection_name):
@@ -129,7 +136,7 @@ class QdrantClient(VectorDBBase):
             PointStruct(
                 id=item['id'],
                 vector=item['vector'],
-                payload={'text': item['text'], 'metadata': item['metadata']},
+                payload={'text': item['text'], 'metadata': process_metadata(item['metadata'])},
             )
             for item in items
         ]
@@ -144,17 +151,20 @@ class QdrantClient(VectorDBBase):
         self,
         collection_name: str,
         vectors: list[list[float | int]],
-        filter: dict | None = None,
+        filter: Optional[dict] = None,
         limit: int = 10,
-    ) -> SearchResult | None:
+    ) -> Optional[SearchResult]:
         # Search for the nearest neighbor items based on the vectors and return 'limit' number of results.
         if limit is None:
             limit = NO_LIMIT  # otherwise qdrant would set limit to 10!
 
+        conditions = [_metadata_filter(key, op, value) for key, op, value in iter_filter_conditions(filter)]
+        query_filter = models.Filter(must=conditions) if conditions else None
         query_response = self.client.query_points(
             collection_name=f'{self.collection_prefix}_{collection_name}',
             query=vectors[0],
             limit=limit,
+            query_filter=query_filter,
         )
         get_result = self._result_to_get_result(query_response.points)
         return SearchResult(
@@ -165,7 +175,7 @@ class QdrantClient(VectorDBBase):
             distances=[[(point.score + 1.0) / 2.0 for point in query_response.points]],
         )
 
-    def query(self, collection_name: str, filter: dict, limit: int | None = None):
+    def query(self, collection_name: str, filter: dict, limit: Optional[int] = None):
         # Construct the filter string for querying
         if not self.has_collection(collection_name):
             return None
@@ -189,7 +199,7 @@ class QdrantClient(VectorDBBase):
             log.exception(f"Error querying a collection '{collection_name}': {e}")
             return None
 
-    def get(self, collection_name: str) -> GetResult | None:
+    def get(self, collection_name: str) -> Optional[GetResult]:
         # Get all the items in the collection.
         points = self.client.scroll(
             collection_name=f'{self.collection_prefix}_{collection_name}',
@@ -212,31 +222,26 @@ class QdrantClient(VectorDBBase):
     def delete(
         self,
         collection_name: str,
-        ids: list[str] | None = None,
-        filter: dict | None = None,
+        ids: Optional[list[str]] = None,
+        filter: Optional[dict] = None,
     ):
-        # Delete the items from the collection based on the ids.
-        field_conditions = []
-
+        # Delete by point ID: the point ID is the item's id (see _create_points).
+        # Filtering on metadata.id silently misses points whose payload omits an
+        # id (e.g. memories), leaving orphaned vectors behind.
         if ids:
-            for id_value in ids:
-                (
-                    field_conditions.append(
-                        models.FieldCondition(
-                            key='metadata.id',
-                            match=models.MatchValue(value=id_value),
-                        ),
-                    ),
-                )
-        elif filter:
+            return self.client.delete(
+                collection_name=f'{self.collection_prefix}_{collection_name}',
+                points_selector=models.PointIdsList(points=ids),
+            )
+
+        field_conditions = []
+        if filter:
             for key, value in filter.items():
-                (
-                    field_conditions.append(
-                        models.FieldCondition(
-                            key=f'metadata.{key}',
-                            match=models.MatchValue(value=value),
-                        ),
-                    ),
+                field_conditions.append(
+                    models.FieldCondition(
+                        key=f'metadata.{key}',
+                        match=models.MatchValue(value=value),
+                    )
                 )
 
         return self.client.delete(

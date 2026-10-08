@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Iterator
+from typing import Iterator, List, Union
 
 import requests
 from langchain_core.document_loaders import BaseLoader
@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 class ExternalWebLoader(BaseLoader):
     def __init__(
         self,
-        web_paths: str | list[str],
+        web_paths: Union[str, List[str]],
         external_url: str,
         external_api_key: str,
         continue_on_failure: bool = True,
@@ -30,6 +30,9 @@ class ExternalWebLoader(BaseLoader):
                 response = requests.post(
                     self.external_url,
                     headers={
+                        # LICENSE covers this Open WebUI user-agent identifier.
+                        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
+                        # https://docs.openwebui.com/license.
                         'User-Agent': 'Open WebUI (https://github.com/open-webui/open-webui) External Web Loader',
                         'Authorization': f'Bearer {self.external_api_key}',
                     },

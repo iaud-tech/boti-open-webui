@@ -2,12 +2,14 @@
 	import { toast } from 'svelte-sonner';
 	import { createEventDispatcher, onMount, getContext, tick } from 'svelte';
 	import { v4 as uuidv4 } from 'uuid';
-	import { getModels as _getModels } from '$lib/apis';
+	import { getBackendConfig, getModels as _getModels } from '$lib/apis';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 
 	const dispatch = createEventDispatcher();
-	const i18n = getContext('i18n');
+	const i18n = getContext<Writable<i18nType>>('i18n');
 
-	import { models, settings, user, terminalServers } from '$lib/stores';
+	import { config, models, settings, user, terminalServers } from '$lib/stores';
 	import { getTerminalServers } from '$lib/apis/terminal';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
@@ -22,9 +24,13 @@
 
 	import AddToolServerModal from '$lib/components/AddToolServerModal.svelte';
 	import AddTerminalServerModal from '$lib/components/AddTerminalServerModal.svelte';
-	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
+	import ExternalKnowledge from './ExternalKnowledge.svelte';
+	import AdminSettingSection from './AdminSettingSection.svelte';
+	import AdminSettingRow from './AdminSettingRow.svelte';
 
 	import {
+		getConnectionsConfig,
+		setConnectionsConfig,
 		getToolServerConnections,
 		setToolServerConnections,
 		getTerminalServerConnections,
@@ -33,18 +39,38 @@
 
 	export let saveSettings: Function;
 
-	let servers = null;
+	type ToolServerConnection = any;
+	type TerminalConnection = {
+		id?: string;
+		url?: string;
+		name?: string;
+		key?: string;
+		enabled?: boolean;
+		[key: string]: any;
+	};
+
+	let servers: ToolServerConnection[] | null = null;
+	let connectionsConfig: any = null;
 	let showConnectionModal = false;
 
 	// Terminal server admin connections
-	let terminalConnections = [];
+	let terminalConnections: TerminalConnection[] = [];
 	let showAddTerminalModal = false;
 	let editTerminalIdx: number | null = null;
-	let showDeleteTerminalConfirm = false;
-	let deleteTerminalIdx: number | null = null;
 
-	const addConnectionHandler = async (server) => {
-		servers = [...servers, server];
+	const updateDirectIntegrations = async () => {
+		const res = await setConnectionsConfig(localStorage.token, connectionsConfig).catch((error) => {
+			toast.error(`${error}`);
+		});
+
+		if (res) {
+			toast.success($i18n.t('Connections settings updated'));
+			await config.set(await getBackendConfig());
+		}
+	};
+
+	const addConnectionHandler = async (server: ToolServerConnection) => {
+		servers = [...(servers ?? []), server];
 		await updateHandler();
 	};
 
@@ -74,24 +100,31 @@
 
 			// Refresh the terminalServers store so changes are reflected immediately
 			// Preserve user direct terminals, refresh system terminals from backend
-			const existingDirectTerminals = ($terminalServers ?? []).filter((t) => !t.id);
+			const existingDirectTerminals = (($terminalServers ?? []) as TerminalConnection[]).filter(
+				(t) => !t.id
+			);
 			const systemTerminals = await getTerminalServers(localStorage.token);
 			const systemEntries = systemTerminals.map((t) => ({
 				id: t.id,
 				url: `${WEBUI_API_BASE_URL}/terminals/${t.id}`,
 				name: t.name,
-				key: localStorage.token
+				key: localStorage.token,
+				contexts: t.contexts ?? {},
+				config: t.config ?? {}
 			}));
-			terminalServers.set([...existingDirectTerminals, ...systemEntries]);
+			terminalServers.set([...existingDirectTerminals, ...systemEntries] as any);
 		}
 	};
 
-	const addTerminalConnection = (server) => {
-		terminalConnections = [...terminalConnections, { ...server, id: server.id ?? uuidv4() }];
+	const addTerminalConnection = (server: TerminalConnection) => {
+		terminalConnections = [
+			...terminalConnections,
+			{ ...server, id: server.id ?? crypto.randomUUID?.() ?? uuidv4() }
+		];
 		saveTerminalServers();
 	};
 
-	const updateTerminalConnection = (idx: number, updated) => {
+	const updateTerminalConnection = (idx: number, updated: TerminalConnection) => {
 		terminalConnections = terminalConnections.map((c, i) =>
 			i === idx ? { ...c, ...updated, id: updated.id ?? c.id } : c
 		);
@@ -104,14 +137,14 @@
 	};
 
 	onMount(async () => {
+		connectionsConfig = await getConnectionsConfig(localStorage.token);
 		const res = await getToolServerConnections(localStorage.token);
-		servers = res.TOOL_SERVER_CONNECTIONS;
+		servers = res.TOOL_SERVER_CONNECTIONS as ToolServerConnection[];
 
-		// Load terminal server connections
 		try {
 			const terminalRes = await getTerminalServerConnections(localStorage.token);
 			if (terminalRes?.TERMINAL_SERVER_CONNECTIONS) {
-				terminalConnections = terminalRes.TERMINAL_SERVER_CONNECTIONS;
+				terminalConnections = terminalRes.TERMINAL_SERVER_CONNECTIONS as TerminalConnection[];
 			}
 		} catch {
 			// Not configured yet
@@ -125,7 +158,7 @@
 	bind:show={showAddTerminalModal}
 	edit={editTerminalIdx !== null}
 	connection={editTerminalIdx !== null ? terminalConnections[editTerminalIdx] : null}
-	onSubmit={(c) => {
+	onSubmit={(c: TerminalConnection) => {
 		if (editTerminalIdx !== null) {
 			updateTerminalConnection(editTerminalIdx, c);
 			editTerminalIdx = null;
@@ -135,187 +168,193 @@
 	}}
 	onDelete={() => {
 		if (editTerminalIdx !== null) {
-			deleteTerminalIdx = editTerminalIdx;
-			showDeleteTerminalConfirm = true;
+			removeTerminalConnection(editTerminalIdx);
 			editTerminalIdx = null;
 		}
 	}}
 />
 
-<ConfirmDialog
-	bind:show={showDeleteTerminalConfirm}
-	on:confirm={() => {
-		if (deleteTerminalIdx !== null) {
-			removeTerminalConnection(deleteTerminalIdx);
-			deleteTerminalIdx = null;
-		}
-	}}
-/>
-
 <form
-	class="flex flex-col h-full justify-between text-sm"
+	class="flex h-full flex-col justify-between text-sm"
 	on:submit|preventDefault={() => {
 		updateHandler();
 	}}
 >
-	<div class=" overflow-y-scroll scrollbar-hidden h-full">
-		{#if servers !== null}
-			<div class="">
-				<div class="mb-3">
-					<div class=" mt-0.5 mb-2.5 text-base font-medium">{$i18n.t('General')}</div>
+	<h2 class="text-sm font-medium text-gray-900 dark:text-white mb-4">
+		{$i18n.t('settings.admin.integrations.title')}
+	</h2>
 
-					<hr class=" border-gray-100/30 dark:border-gray-850/30 my-2" />
-
-					<div class="mb-2.5 flex flex-col w-full justify-between">
-						<div class="flex justify-between items-center mb-0.5">
-							<div class="font-medium">{$i18n.t('Manage Tool Servers')}</div>
-
-							<Tooltip content={$i18n.t(`Add Connection`)}>
-								<button
-									class="px-1"
-									on:click={() => {
-										showConnectionModal = true;
-									}}
-									type="button"
-								>
-									<Plus />
-								</button>
-							</Tooltip>
+	<div class="flex-1 min-h-0 overflow-y-auto scrollbar-hover pr-1.5">
+		{#if servers !== null && connectionsConfig !== null}
+			<AdminSettingSection
+				title={$i18n.t('settings.admin.integrations.sections.tools.title')}
+				first
+			>
+				<div>
+					<div class="mb-2 flex items-center justify-between">
+						<div class="text-xs text-gray-600 dark:text-gray-400">
+							{$i18n.t('settings.admin.integrations.externalToolServers.label')}
 						</div>
 
-						<div class="flex flex-col gap-1">
-							{#each servers as server, idx}
-								<Connection
-									bind:connection={server}
-									onSubmit={() => {
-										updateHandler();
-									}}
-									onDelete={() => {
-										servers = servers.filter((_, i) => i !== idx);
-										updateHandler();
-									}}
-								/>
-							{/each}
-						</div>
-
-						{#if servers.length === 0}
-							<div class="text-xs text-gray-400 dark:text-gray-500">
-								{$i18n.t('No tool server connections configured.')}
-							</div>
-						{/if}
-
-						<div class="my-1.5">
-							<div class="text-xs text-gray-500">
-								{$i18n.t('Connect to your own OpenAPI compatible external tool servers.')}
-							</div>
-						</div>
+						<Tooltip content={$i18n.t('settings.admin.integrations.addConnection.label')}>
+							<button
+								class="flex size-6 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-900 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-white"
+								on:click={() => {
+									showConnectionModal = true;
+								}}
+								type="button"
+							>
+								<Plus />
+							</button>
+						</Tooltip>
 					</div>
 
-					<hr class=" border-gray-100/30 dark:border-gray-850/30 my-4" />
+					<div class="flex flex-col gap-1">
+						{#each servers ?? [] as server, idx}
+							<Connection
+								bind:connection={server}
+								onSubmit={() => {
+									updateHandler();
+								}}
+								onDelete={() => {
+									servers = (servers ?? []).filter((_, i) => i !== idx);
+									updateHandler();
+								}}
+							/>
+						{/each}
+					</div>
 
-					<div class="mb-2.5 flex flex-col w-full">
-						<div class="flex justify-between items-center mb-1">
-							<div class="flex items-center gap-2">
-								<div class="font-medium">{$i18n.t('Open Terminal')}</div>
-								<span
-									class="text-[0.65rem] font-medium uppercase px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
-									>{$i18n.t('Experimental')}</span
-								>
-							</div>
-
-							<Tooltip content={$i18n.t('Add Connection')}>
-								<button
-									class="px-1"
-									on:click={() => {
-										editTerminalIdx = null;
-										showAddTerminalModal = true;
-									}}
-									type="button"
-								>
-									<Plus />
-								</button>
-							</Tooltip>
+					{#if (servers ?? []).length === 0}
+						<div class="text-[0.6875rem] text-gray-400 dark:text-gray-600">
+							{$i18n.t('No tool server connections configured.')}
 						</div>
+					{/if}
 
-						<div class="flex flex-col gap-1.5">
-							{#each terminalConnections as connection, idx}
-								<div class="flex w-full gap-2 items-center">
-									<Tooltip className="w-full relative" content={''} placement="top-start">
-										<div class="flex w-full">
-											<div
-												class="flex-1 relative flex gap-1.5 items-center {connection?.enabled ===
-												false
-													? 'opacity-50'
-													: ''}"
-											>
-												<Tooltip content={$i18n.t('Terminal')}>
-													<Cloud className="size-4" strokeWidth="1.5" />
-												</Tooltip>
-
-												<div class="outline-hidden w-full bg-transparent text-sm">
-													{connection.name || connection.url || $i18n.t('New Terminal')}
-												</div>
-											</div>
-										</div>
-									</Tooltip>
-
-									<div class="flex gap-1 items-center">
-										<Tooltip content={$i18n.t('Configure')}>
-											<button
-												class="self-center p-1 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-850 rounded-lg transition"
-												on:click={() => {
-													editTerminalIdx = idx;
-													showAddTerminalModal = true;
-												}}
-												type="button"
-											>
-												<Cog6 />
-											</button>
-										</Tooltip>
-
-										<Tooltip
-											content={connection?.enabled !== false
-												? $i18n.t('Enabled')
-												: $i18n.t('Disabled')}
-										>
-											<Switch
-												state={connection?.enabled !== false}
-												on:change={() => {
-													terminalConnections = terminalConnections.map((c, i) =>
-														i === idx ? { ...c, enabled: !(c?.enabled !== false) } : c
-													);
-													saveTerminalServers();
-												}}
-											/>
-										</Tooltip>
-									</div>
-								</div>
-							{/each}
-						</div>
-
-						{#if terminalConnections.length === 0}
-							<div class="text-xs text-gray-400 dark:text-gray-500">
-								{$i18n.t('No terminal connections configured.')}
-							</div>
-						{/if}
-
-						<div class="mt-1.5">
-							<div class="text-xs text-gray-500">
-								{$i18n.t(
-									'Connect to Open Terminal instances. All users will have access to file browsing and terminal tools through these servers.'
-								)}
-							</div>
-							<div class="text-xs text-gray-600 dark:text-gray-300 mt-1">
-								<a
-									class="underline"
-									href="https://github.com/open-webui/open-terminal"
-									target="_blank">{$i18n.t('Learn more about Open Terminal')} ↗</a
-								>
-							</div>
-						</div>
+					<div class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
+						{$i18n.t('Connect to your own OpenAPI compatible external tool servers.')}
 					</div>
 				</div>
-			</div>
+			</AdminSettingSection>
+
+			<AdminSettingSection title={$i18n.t('settings.admin.integrations.sections.terminal.title')}>
+				<div>
+					<div class="mb-2 flex items-center justify-between">
+						<div class="text-xs text-gray-600 dark:text-gray-400">
+							{$i18n.t('settings.admin.integrations.openTerminal.label')}
+						</div>
+
+						<Tooltip content={$i18n.t('settings.admin.integrations.addConnection.label')}>
+							<button
+								class="flex size-6 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-900 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-white"
+								on:click={() => {
+									editTerminalIdx = null;
+									showAddTerminalModal = true;
+								}}
+								type="button"
+							>
+								<Plus />
+							</button>
+						</Tooltip>
+					</div>
+
+					<div class="flex flex-col gap-1.5">
+						{#each terminalConnections as connection, idx}
+							<div class="flex w-full gap-2 items-center">
+								<Tooltip className="w-full relative" content={''} placement="top-start">
+									<div class="flex w-full">
+										<div
+											class="flex-1 relative flex gap-1.5 items-center {connection?.enabled ===
+											false
+												? 'opacity-50'
+												: ''}"
+										>
+											<Tooltip
+												content={$i18n.t('settings.admin.integrations.sections.terminal.title')}
+											>
+												<Cloud className="size-4" strokeWidth="1.5" />
+											</Tooltip>
+
+											<div
+												class="outline-hidden w-full bg-transparent text-xs text-gray-700 dark:text-gray-300"
+											>
+												{connection.name || connection.url || $i18n.t('New Terminal')}
+											</div>
+										</div>
+									</div>
+								</Tooltip>
+
+								<div class="flex gap-1 items-center">
+									<Tooltip content={$i18n.t('Configure')}>
+										<button
+											class="self-center p-1 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition"
+											on:click={() => {
+												editTerminalIdx = idx;
+												showAddTerminalModal = true;
+											}}
+											type="button"
+										>
+											<Cog6 />
+										</button>
+									</Tooltip>
+
+									<Tooltip
+										content={connection?.enabled !== false
+											? $i18n.t('Enabled')
+											: $i18n.t('Disabled')}
+									>
+										<Switch
+											state={connection?.enabled !== false}
+											on:change={() => {
+												terminalConnections = terminalConnections.map((c, i) =>
+													i === idx ? { ...c, enabled: !(c?.enabled !== false) } : c
+												);
+												saveTerminalServers();
+											}}
+										/>
+									</Tooltip>
+								</div>
+							</div>
+						{/each}
+					</div>
+
+					{#if terminalConnections.length === 0}
+						<div class="text-[0.6875rem] text-gray-400 dark:text-gray-600">
+							{$i18n.t('No terminal connections configured.')}
+						</div>
+					{/if}
+
+					<div class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
+						{$i18n.t(
+							'Connect to Open Terminal instances. Admins and users granted access can use file browsing and terminal tools through these servers.'
+						)}
+					</div>
+					<a
+						class="mt-0.5 block text-[0.6875rem] text-gray-500 underline hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+						href="https://github.com/open-webui/open-terminal"
+						target="_blank">{$i18n.t('Learn more about Open Terminal')} ↗</a
+					>
+				</div>
+			</AdminSettingSection>
+
+			<AdminSettingSection title={$i18n.t('settings.admin.integrations.sections.knowledge.title')}>
+				<ExternalKnowledge />
+			</AdminSettingSection>
+
+			<AdminSettingSection
+				title={$i18n.t('settings.admin.connections.sections.userConnections.title')}
+			>
+				<AdminSettingRow
+					label={$i18n.t('settings.admin.connections.directIntegrations.label')}
+					description={$i18n.t('settings.admin.connections.directIntegrations.description')}
+					let:labelId
+				>
+					<Switch
+						bind:state={connectionsConfig.ENABLE_DIRECT_INTEGRATIONS}
+						on:change={updateDirectIntegrations}
+						ariaLabelledbyId={labelId}
+					/>
+				</AdminSettingRow>
+			</AdminSettingSection>
 		{:else}
 			<div class="flex h-full justify-center">
 				<div class="my-auto">
@@ -325,9 +364,9 @@
 		{/if}
 	</div>
 
-	<div class="flex justify-end pt-3 text-sm font-medium">
+	<div class="flex justify-end pt-6 text-sm font-normal">
 		<button
-			class="px-3.5 py-1.5 text-sm font-medium bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
+			class="px-3.5 py-1.5 text-sm font-normal bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
 			type="submit"
 		>
 			{$i18n.t('Save')}

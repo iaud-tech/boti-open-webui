@@ -9,19 +9,28 @@ Create Date: 2025-12-02 06:54:19.401334
 import json
 import time
 import uuid
-from collections.abc import Sequence
+from typing import Sequence, Union
 
+import open_webui.internal.db
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision: str = '3e0e00844bb0'
-down_revision: str | None = '90ef40d4714e'
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+down_revision: Union[str, None] = '90ef40d4714e'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = set(inspector.get_table_names())
+
+    if 'knowledge_file' in existing_tables:
+        return  # Already created — skip everything
+
     op.create_table(
         'knowledge_file',
         sa.Column('id', sa.Text(), primary_key=True),

@@ -2,14 +2,13 @@
 	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
-	import { mobile, showArchivedChats, showSidebar, user } from '$lib/stores';
+	import { mobile, showSidebar, user } from '$lib/stores';
 
 	import { slide } from 'svelte/transition';
 	import { page } from '$app/stores';
 
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
-	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
 	import PencilSquare from '../icons/PencilSquare.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 	import Sidebar from '../icons/Sidebar.svelte';
@@ -21,7 +20,7 @@
 	import Pin from '../icons/Pin.svelte';
 	import PinnedMessagesModal from './PinnedMessagesModal.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: any = getContext('i18n');
 
 	let showChannelPinnedMessagesModal = false;
 	let showChannelInfoModal = false;
@@ -79,7 +78,7 @@
 							}}
 						>
 							<div class=" self-center p-1.5">
-								<Sidebar />
+								<Sidebar className="size-4" />
 							</div>
 						</button>
 					</Tooltip>
@@ -153,18 +152,20 @@
 				{/if}
 			</div>
 
-			<div class="self-start flex flex-none items-center text-gray-600 dark:text-gray-400 gap-1">
+			<div
+				class="self-start flex flex-none items-center text-gray-600 dark:text-gray-400 gap-1 shrink-0"
+			>
 				{#if channel}
 					<Tooltip content={$i18n.t('Pinned Messages')}>
 						<button
 							class=" flex cursor-pointer py-1.5 px-1.5 border dark:border-gray-850 border-gray-50 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-							aria-label="Pinned Messages"
+							aria-label={$i18n.t('Pinned Messages')}
 							type="button"
 							on:click={() => {
 								showChannelPinnedMessagesModal = true;
 							}}
 						>
-							<div class=" flex items-center gap-0.5 m-auto self-center">
+							<div class=" flex items-center gap-0.5 m-auto self-center shrink-0">
 								<Pin className=" size-4" strokeWidth="1.5" />
 							</div>
 						</button>
@@ -173,50 +174,23 @@
 					{#if channel?.user_count !== undefined}
 						<Tooltip content={$i18n.t('Users')}>
 							<button
-								class=" flex cursor-pointer py-1 px-1.5 border dark:border-gray-850 border-gray-50 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-								aria-label="User Count"
+								class=" flex cursor-pointer shrink-0 py-1 px-1.5 border dark:border-gray-850 border-gray-50 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+								aria-label={$i18n.t('User Count')}
 								type="button"
 								on:click={() => {
 									showChannelInfoModal = true;
 								}}
 							>
-								<div class=" flex items-center gap-0.5 m-auto self-center">
+								<div class=" flex items-center gap-0.5 m-auto self-center shrink-0">
 									<UserAlt className=" size-4" strokeWidth="1.5" />
 
-									<div class="text-sm">
+									<div class="text-sm shrink-0">
 										{channel.user_count}
 									</div>
 								</div>
 							</button>
 						</Tooltip>
 					{/if}
-				{/if}
-
-				{#if $user !== undefined}
-					<UserMenu
-						className="w-[240px]"
-						role={$user?.role}
-						help={true}
-						on:show={(e) => {
-							if (e.detail === 'archived-chat') {
-								showArchivedChats.set(true);
-							}
-						}}
-					>
-						<button
-							class="select-none flex rounded-xl p-1.5 w-full hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-							aria-label="User Menu"
-						>
-							<div class=" self-center">
-								<img
-									src={`${WEBUI_API_BASE_URL}/users/${$user?.id}/profile/image`}
-									class="size-6 object-cover rounded-full"
-									alt="User profile"
-									draggable="false"
-								/>
-							</div>
-						</button>
-					</UserMenu>
 				{/if}
 			</div>
 		</div>

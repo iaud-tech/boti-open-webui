@@ -6,76 +6,90 @@ Create Date: 2025-11-27 03:07:56.200231
 
 """
 
-from collections.abc import Sequence
+from typing import Sequence, Union
 
+import open_webui.internal.db
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '2f1211949ecc'
-down_revision: str | None = '37f288994c47'
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+down_revision: Union[str, None] = '37f288994c47'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+
     # New columns to be added to channel_member table
-    op.add_column('channel_member', sa.Column('status', sa.Text(), nullable=True))
-    op.add_column(
-        'channel_member',
-        sa.Column(
-            'is_active',
-            sa.Boolean(),
-            nullable=False,
-            default=True,
-            server_default=sa.sql.expression.true(),
-        ),
-    )
-
-    op.add_column(
-        'channel_member',
-        sa.Column(
-            'is_channel_muted',
-            sa.Boolean(),
-            nullable=False,
-            default=False,
-            server_default=sa.sql.expression.false(),
-        ),
-    )
-    op.add_column(
-        'channel_member',
-        sa.Column(
-            'is_channel_pinned',
-            sa.Boolean(),
-            nullable=False,
-            default=False,
-            server_default=sa.sql.expression.false(),
-        ),
-    )
-
-    op.add_column('channel_member', sa.Column('data', sa.JSON(), nullable=True))
-    op.add_column('channel_member', sa.Column('meta', sa.JSON(), nullable=True))
-
-    op.add_column('channel_member', sa.Column('joined_at', sa.BigInteger(), nullable=False))
-    op.add_column('channel_member', sa.Column('left_at', sa.BigInteger(), nullable=True))
-
-    op.add_column('channel_member', sa.Column('last_read_at', sa.BigInteger(), nullable=True))
-
-    op.add_column('channel_member', sa.Column('updated_at', sa.BigInteger(), nullable=True))
+    cm_cols = {c['name'] for c in inspector.get_columns('channel_member')}
+    if 'status' not in cm_cols:
+        op.add_column('channel_member', sa.Column('status', sa.Text(), nullable=True))
+    if 'is_active' not in cm_cols:
+        op.add_column(
+            'channel_member',
+            sa.Column(
+                'is_active',
+                sa.Boolean(),
+                nullable=False,
+                default=True,
+                server_default=sa.sql.expression.true(),
+            ),
+        )
+    if 'is_channel_muted' not in cm_cols:
+        op.add_column(
+            'channel_member',
+            sa.Column(
+                'is_channel_muted',
+                sa.Boolean(),
+                nullable=False,
+                default=False,
+                server_default=sa.sql.expression.false(),
+            ),
+        )
+    if 'is_channel_pinned' not in cm_cols:
+        op.add_column(
+            'channel_member',
+            sa.Column(
+                'is_channel_pinned',
+                sa.Boolean(),
+                nullable=False,
+                default=False,
+                server_default=sa.sql.expression.false(),
+            ),
+        )
+    if 'data' not in cm_cols:
+        op.add_column('channel_member', sa.Column('data', sa.JSON(), nullable=True))
+    if 'meta' not in cm_cols:
+        op.add_column('channel_member', sa.Column('meta', sa.JSON(), nullable=True))
+    if 'joined_at' not in cm_cols:
+        op.add_column('channel_member', sa.Column('joined_at', sa.BigInteger(), nullable=False))
+    if 'left_at' not in cm_cols:
+        op.add_column('channel_member', sa.Column('left_at', sa.BigInteger(), nullable=True))
+    if 'last_read_at' not in cm_cols:
+        op.add_column('channel_member', sa.Column('last_read_at', sa.BigInteger(), nullable=True))
+    if 'updated_at' not in cm_cols:
+        op.add_column('channel_member', sa.Column('updated_at', sa.BigInteger(), nullable=True))
 
     # New columns to be added to message table
-    op.add_column(
-        'message',
-        sa.Column(
-            'is_pinned',
-            sa.Boolean(),
-            nullable=False,
-            default=False,
-            server_default=sa.sql.expression.false(),
-        ),
-    )
-    op.add_column('message', sa.Column('pinned_at', sa.BigInteger(), nullable=True))
-    op.add_column('message', sa.Column('pinned_by', sa.Text(), nullable=True))
+    msg_cols = {c['name'] for c in inspector.get_columns('message')}
+    if 'is_pinned' not in msg_cols:
+        op.add_column(
+            'message',
+            sa.Column(
+                'is_pinned',
+                sa.Boolean(),
+                nullable=False,
+                default=False,
+                server_default=sa.sql.expression.false(),
+            ),
+        )
+    if 'pinned_at' not in msg_cols:
+        op.add_column('message', sa.Column('pinned_at', sa.BigInteger(), nullable=True))
+    if 'pinned_by' not in msg_cols:
+        op.add_column('message', sa.Column('pinned_by', sa.Text(), nullable=True))
 
 
 def downgrade() -> None:

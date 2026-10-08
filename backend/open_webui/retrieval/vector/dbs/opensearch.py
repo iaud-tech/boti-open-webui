@@ -2,6 +2,8 @@
 NOTE: This vector database integration is community-supported and maintained on a best-effort basis.
 """
 
+from typing import Any, Optional
+
 from open_webui.config import (
     OPENSEARCH_CERT_VERIFY,
     OPENSEARCH_PASSWORD,
@@ -15,9 +17,15 @@ from open_webui.retrieval.vector.main import (
     VectorDBBase,
     VectorItem,
 )
-from open_webui.retrieval.vector.utils import process_metadata
+from open_webui.retrieval.vector.utils import iter_filter_conditions, process_metadata
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
+
+
+def _metadata_filter(key: str, op: str, value: Any) -> dict:
+    if op == '$in':
+        return {'terms': {f'metadata.{key}.keyword': value}}
+    return {'term': {f'metadata.{key}.keyword': value}}
 
 
 class OpenSearchClient(VectorDBBase):
@@ -116,9 +124,11 @@ class OpenSearchClient(VectorDBBase):
         self,
         collection_name: str,
         vectors: list[list[float | int]],
-        filter: dict | None = None,
+        filter: Optional[dict] = None,
         limit: int = 10,
-    ) -> SearchResult | None:
+    ) -> Optional[SearchResult]:
+        filter_clauses = [_metadata_filter(key, op, value) for key, op, value in iter_filter_conditions(filter)]
+
         try:
             if not self.has_collection(collection_name):
                 return None
@@ -128,7 +138,7 @@ class OpenSearchClient(VectorDBBase):
                 '_source': ['text', 'metadata'],
                 'query': {
                     'script_score': {
-                        'query': {'match_all': {}},
+                        'query': {'bool': {'filter': filter_clauses}} if filter_clauses else {'match_all': {}},
                         'script': {
                             'source': '(cosineSimilarity(params.query_value, doc[params.field]) + 1.0) / 2.0',
                             'params': {
@@ -144,10 +154,10 @@ class OpenSearchClient(VectorDBBase):
 
             return self._result_to_search_result(result)
 
-        except Exception:
+        except Exception as e:
             return None
 
-    def query(self, collection_name: str, filter: dict, limit: int | None = None) -> GetResult | None:
+    def query(self, collection_name: str, filter: dict, limit: Optional[int] = None) -> Optional[GetResult]:
         if not self.has_collection(collection_name):
             return None
 
@@ -170,14 +180,14 @@ class OpenSearchClient(VectorDBBase):
 
             return self._result_to_get_result(result)
 
-        except Exception:
+        except Exception as e:
             return None
 
     def _create_index_if_not_exists(self, collection_name: str, dimension: int):
         if not self.has_collection(collection_name):
             self._create_index(collection_name, dimension)
 
-    def get(self, collection_name: str) -> GetResult | None:
+    def get(self, collection_name: str) -> Optional[GetResult]:
         query = {'query': {'match_all': {}}, '_source': ['text', 'metadata']}
 
         result = self.client.search(index=self._get_index_name(collection_name), body=query)
@@ -227,8 +237,8 @@ class OpenSearchClient(VectorDBBase):
     def delete(
         self,
         collection_name: str,
-        ids: list[str] | None = None,
-        filter: dict | None = None,
+        ids: Optional[list[str]] = None,
+        filter: Optional[dict] = None,
     ):
         if ids:
             actions = [

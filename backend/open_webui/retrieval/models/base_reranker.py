@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
+from typing import List, Optional, Tuple
 
 
 class BaseReranker(ABC):
     @abstractmethod
-    def predict(self, sentences: list[tuple[str, str]]) -> list[float] | None:
+    def predict(self, sentences: List[Tuple[str, str]]) -> Optional[List[float]]:
         pass

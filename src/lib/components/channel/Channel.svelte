@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
-	import { Pane, PaneGroup, PaneResizer } from 'paneforge';
 
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { v4 as uuidv4 } from 'uuid';
 
 	import {
@@ -20,6 +20,7 @@
 	import MessageInput from './MessageInput.svelte';
 	import Navbar from './Navbar.svelte';
 	import Drawer from '../common/Drawer.svelte';
+	import ResizableSidePanel from '../common/ResizableSidePanel.svelte';
 	import EllipsisVertical from '../icons/EllipsisVertical.svelte';
 	import Thread from './Thread.svelte';
 	import i18n from '$lib/i18n';
@@ -35,17 +36,22 @@
 
 	let top = false;
 
-	let channel = null;
+	let channel: any = null;
 	let messages = null;
 
 	let replyToMessage = null;
-	let threadId = null;
+	let threadId: any = null;
 
 	let typingUsers = [];
 	let typingUsersTimeout = {};
 
 	$: if (id) {
 		initHandler();
+	}
+
+	$: if (channel && $page.url.searchParams.get('thread')) {
+		threadId = $page.url.searchParams.get('thread');
+		window.history.replaceState(history.state, '', `/channels/${id}`);
 	}
 
 	const scrollToBottom = () => {
@@ -74,6 +80,27 @@
 				return channel;
 			})
 		);
+	};
+
+	const pinHandler = (
+		messageId: string,
+		pinned: boolean,
+		pinnedBy: string | null = pinned ? ($user?.id ?? null) : null,
+		pinnedAt: number | null = pinned ? Date.now() * 1000000 : null
+	) => {
+		if (messages) {
+			messages = messages.map((message) => {
+				if (message.id === messageId) {
+					return {
+						...message,
+						is_pinned: pinned,
+						pinned_by: pinnedBy,
+						pinned_at: pinnedAt
+					};
+				}
+				return message;
+			});
+		}
 	};
 
 	const initHandler = async () => {
@@ -141,7 +168,17 @@
 					messages[idx] = data;
 				}
 			} else if (type === 'message:delete') {
-				messages = messages.filter((message) => message.id !== data.id);
+				messages = messages
+					.filter((message) => message.id !== data.id)
+					.map((message) =>
+						message?.reply_to_message?.id === data.id
+							? { ...message, reply_to_message: null }
+							: message
+					);
+
+				if (replyToMessage?.id === data.id) {
+					replyToMessage = null;
+				}
 
 				if (threadId === data.id) {
 					threadId = null;
@@ -244,6 +281,11 @@
 
 	let mediaQuery;
 	let largeScreen = false;
+	let threadPanelWidth = 420;
+
+	const handleMediaQuery = (e) => {
+		largeScreen = e.matches;
+	};
 
 	onMount(() => {
 		if ($chatId) {
@@ -254,14 +296,6 @@
 
 		mediaQuery = window.matchMedia('(min-width: 1024px)');
 
-		const handleMediaQuery = async (e) => {
-			if (e.matches) {
-				largeScreen = true;
-			} else {
-				largeScreen = false;
-			}
-		};
-
 		mediaQuery.addEventListener('change', handleMediaQuery);
 		handleMediaQuery(mediaQuery);
 	});
@@ -271,10 +305,14 @@
 		updateLastReadAt(id);
 		_channelId.set(null);
 		$socket?.off('events:channel', channelEventHandler);
+		mediaQuery?.removeEventListener('change', handleMediaQuery);
 	});
 </script>
 
 <svelte:head>
+	<!-- LICENSE covers this Open WebUI browser-title identifier.
+	Do not alter, remove, obscure, or replace it except as LICENSE permits:
+	https://docs.openwebui.com/license. -->
 	{#if channel?.type === 'dm'}
 		<title
 			>{channel?.name.trim() ||
@@ -288,10 +326,10 @@
 					} else {
 						return e.name;
 					}
-				}, '')} • Open WebUI</title
+				}, '')} / Open WebUI</title
 		>
 	{:else}
-		<title>#{channel?.name ?? 'Channel'} • Open WebUI</title>
+		<title>#{channel?.name ?? 'Channel'} / Open WebUI</title>
 	{/if}
 </svelte:head>
 
@@ -301,21 +339,11 @@
 		: ''} w-full max-w-full flex flex-col"
 	id="channel-container"
 >
-	<PaneGroup direction="horizontal" class="w-full h-full">
-		<Pane defaultSize={50} minSize={50} class="h-full flex flex-col w-full relative">
+	<div class="w-full h-full flex">
+		<div class="h-full flex flex-col min-w-0 flex-1 relative">
 			<Navbar
 				{channel}
-				onPin={(messageId, pinned) => {
-					messages = messages.map((message) => {
-						if (message.id === messageId) {
-							return {
-								...message,
-								is_pinned: pinned
-							};
-						}
-						return message;
-					});
-				}}
+				onPin={pinHandler}
 				onUpdate={async () => {
 					channel = await getChannelById(localStorage.token, id).catch((error) => {
 						return null;
@@ -347,6 +375,7 @@
 								onThread={(id) => {
 									threadId = id;
 								}}
+								onPin={pinHandler}
 								onLoad={async () => {
 									const newMessages = await getChannelMessages(
 										localStorage.token,
@@ -392,7 +421,7 @@
 					</div>
 				</div>
 			{/if}
-		</Pane>
+		</div>
 
 		{#if !largeScreen}
 			{#if threadId !== null}
@@ -406,6 +435,7 @@
 						<Thread
 							{threadId}
 							{channel}
+							onPin={pinHandler}
 							onClose={() => {
 								threadId = null;
 							}}
@@ -414,26 +444,24 @@
 				</Drawer>
 			{/if}
 		{:else if threadId !== null}
-			<PaneResizer
-				class="relative flex items-center justify-center group border-l border-gray-50 dark:border-gray-850/30 hover:border-gray-200 dark:hover:border-gray-800  transition z-20"
-				id="controls-resizer"
+			<ResizableSidePanel
+				open={true}
+				bind:width={threadPanelWidth}
+				minWidth={320}
+				maxWidth={640}
+				className="h-full"
 			>
-				<div
-					class=" absolute -left-1.5 -right-1.5 -top-0 -bottom-0 z-20 cursor-col-resize bg-transparent"
-				></div>
-			</PaneResizer>
-
-			<Pane defaultSize={50} minSize={30} class="h-full w-full">
 				<div class="h-full w-full shadow-xl">
 					<Thread
 						{threadId}
 						{channel}
+						onPin={pinHandler}
 						onClose={() => {
 							threadId = null;
 						}}
 					/>
 				</div>
-			</Pane>
+			</ResizableSidePanel>
 		{/if}
-	</PaneGroup>
+	</div>
 </div>

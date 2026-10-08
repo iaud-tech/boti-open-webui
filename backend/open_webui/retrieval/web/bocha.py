@@ -1,8 +1,9 @@
-import json
 import logging
+from typing import Optional
 
 import requests
 from open_webui.retrieval.web.main import SearchResult, get_filtered_results
+from open_webui.utils.json_codec import JSONCodec
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def _parse_response(response):
     return results
 
 
-def search_bocha(api_key: str, query: str, count: int, filter_list: list[str] | None = None) -> list[SearchResult]:
+def search_bocha(api_key: str, query: str, count: int, filter_list: Optional[list[str]] = None) -> list[SearchResult]:
     """Search using Bocha's Search API and return the results as a list of SearchResult objects.
 
     Args:
@@ -40,7 +41,7 @@ def search_bocha(api_key: str, query: str, count: int, filter_list: list[str] | 
     url = 'https://api.bochaai.com/v1/web-search?utm_source=ollama'
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
 
-    payload = json.dumps({'query': query, 'summary': True, 'freshness': 'noLimit', 'count': count})
+    payload = JSONCodec.dumps({'query': query, 'summary': True, 'freshness': 'noLimit', 'count': count})
 
     response = requests.post(url, headers=headers, data=payload, timeout=5)
     response.raise_for_status()

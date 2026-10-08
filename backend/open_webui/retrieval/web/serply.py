@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from urllib.parse import urlencode
 
@@ -49,7 +51,7 @@ def search_serply(
     response.raise_for_status()
 
     json_response = response.json()
-    log.info(f'results from serply search: {json_response}')
+    log.info('results from serply search: %s', json_response)
 
     results = sorted(json_response.get('results', []), key=lambda x: x.get('realPosition', 0))
     if filter_list:

@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import requests
 from open_webui.retrieval.web.main import SearchResult, get_filtered_results
@@ -9,11 +10,11 @@ log = logging.getLogger(__name__)
 
 def search_yacy(
     query_url: str,
-    username: str | None,
-    password: str | None,
+    username: Optional[str],
+    password: Optional[str],
     query: str,
     count: int,
-    filter_list: list[str] | None = None,
+    filter_list: Optional[list[str]] = None,
 ) -> list[SearchResult]:
     """
     Search a Yacy instance for a given query and return the results as a list of SearchResult objects.
@@ -52,12 +53,15 @@ def search_yacy(
         # Strip all query parameters from the URL
         query_url = query_url.rstrip('/') + '/yacysearch.json'
 
-    log.debug(f'searching {query_url}')
+    log.debug('searching %s', query_url)
 
     response = requests.get(
         query_url,
         auth=yacy_auth,
         headers={
+            # LICENSE covers this Open WebUI user-agent identifier.
+            # Do not alter, remove, obscure, or replace it except as LICENSE permits:
+            # https://docs.openwebui.com/license.
             'User-Agent': 'Open WebUI (https://github.com/open-webui/open-webui) RAG Bot',
             'Accept': 'text/html',
             'Accept-Encoding': 'gzip, deflate',

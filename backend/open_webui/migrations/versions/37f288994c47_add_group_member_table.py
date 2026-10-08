@@ -9,19 +9,26 @@ Create Date: 2025-11-17 03:45:25.123939
 import json
 import time
 import uuid
-from collections.abc import Sequence
+from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '37f288994c47'
-down_revision: str | None = 'a5c220713937'
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+down_revision: Union[str, None] = 'a5c220713937'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = set(inspector.get_table_names())
+
+    if 'group_member' in existing_tables:
+        return  # Already created — skip everything
+
     # 1. Create new table
     op.create_table(
         'group_member',

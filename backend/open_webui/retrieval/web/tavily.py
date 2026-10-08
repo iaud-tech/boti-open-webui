@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import logging
 
 import requests
+from open_webui.env import TAVILY_API_BASE_URL
 from open_webui.retrieval.web.main import SearchResult, get_filtered_results
 
 log = logging.getLogger(__name__)
@@ -21,9 +24,9 @@ def search_tavily(
         count (int): The maximum number of results to return
 
     Returns:
-        list[SearchResult]: A list of search results
+        A list of SearchResult objects.
     """
-    url = 'https://api.tavily.com/search'
+    url = f'{TAVILY_API_BASE_URL}/search'
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {api_key}',

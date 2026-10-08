@@ -9,7 +9,7 @@ Create Date: 2026-02-01 04:00:00.000000
 import json
 import logging
 import time
-from collections.abc import Sequence
+from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
@@ -17,9 +17,9 @@ from alembic import op
 log = logging.getLogger(__name__)
 
 revision: str = '8452d01d26d7'
-down_revision: str | None = '374d2f66af06'
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+down_revision: Union[str, None] = '374d2f66af06'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 BATCH_SIZE = 5000
 
@@ -56,6 +56,13 @@ def _flush_batch(conn, table, batch):
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = set(inspector.get_table_names())
+
+    if 'chat_message' in existing_tables:
+        return  # Already created — skip everything
+
     # Step 1: Create table
     op.create_table(
         'chat_message',
@@ -85,8 +92,6 @@ def upgrade() -> None:
     op.create_index('chat_message_user_created_idx', 'chat_message', ['user_id', 'created_at'])
 
     # Step 2: Backfill from existing chats
-    conn = op.get_bind()
-
     chat_table = sa.table(
         'chat',
         sa.column('id', sa.Text()),
@@ -164,7 +169,7 @@ def upgrade() -> None:
 
             try:
                 timestamp = int(float(timestamp))
-            except Exception:
+            except Exception as e:
                 timestamp = now
 
             # Normalize timestamp: convert ms to seconds, validate range

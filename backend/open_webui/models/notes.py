@@ -1,13 +1,16 @@
 import time
 import uuid
+from functools import lru_cache
+from typing import Optional
 
-from open_webui.internal.db import Base, get_db_context
+from open_webui.internal.db import Base, get_async_db_context
 from open_webui.models.access_grants import AccessGrantModel, AccessGrants
 from open_webui.models.groups import Groups
-from open_webui.models.users import User, UserModel, UserResponse
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import JSON, BigInteger, Column, Text, cast, func, or_
-from sqlalchemy.orm import Session
+from open_webui.models.users import User, UserModel, UserResponse, Users
+from open_webui.utils.json_codec import JSONCodec
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import JSON, BigInteger, Boolean, Column, ForeignKey, Text, delete, func, or_, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 ####################
 # Note DB Schema
@@ -28,6 +31,32 @@ class Note(Base):
     updated_at = Column(BigInteger)
 
 
+def sanitize_note_data(data: Optional[dict]) -> Optional[dict]:
+    """Sanitize malformed note.data so content.md is always markdown text."""
+    if data is None:
+        return None
+    if not isinstance(data, dict):
+        return {'content': {'md': str(data)}}
+
+    content = data.get('content')
+    if not isinstance(content, dict) or 'md' not in content or isinstance(content.get('md'), str):
+        return data
+
+    md = content.get('md') if content.get('md') is not None else ''
+    if isinstance(md, (dict, list)):
+        md = f'```json\n{JSONCodec.dumps(md, indent=2, ensure_ascii=False)}\n```'
+    else:
+        md = str(md)
+
+    return {
+        **data,
+        'content': {
+            **content,
+            'md': md,
+        },
+    }
+
+
 class NoteModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -35,13 +64,28 @@ class NoteModel(BaseModel):
     user_id: str
 
     title: str
-    data: dict | None = None
-    meta: dict | None = None
+    data: Optional[dict] = None
+    meta: Optional[dict] = None
+    is_pinned: Optional[bool] = False
 
     access_grants: list[AccessGrantModel] = Field(default_factory=list)
 
     created_at: int  # timestamp in epoch
     updated_at: int  # timestamp in epoch
+
+    @field_validator('data', mode='before')
+    @classmethod
+    def sanitize_data(cls, data):
+        return sanitize_note_data(data)
+
+
+class PinnedNote(Base):
+    __tablename__ = 'pinned_note'
+
+    id = Column(Text, primary_key=True)
+    user_id = Column(Text, nullable=False)
+    note_id = Column(Text, ForeignKey('note.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(BigInteger, nullable=False)
 
 
 ####################
@@ -51,29 +95,40 @@ class NoteModel(BaseModel):
 
 class NoteForm(BaseModel):
     title: str
-    data: dict | None = None
-    meta: dict | None = None
-    access_grants: list[dict] | None = None
+    data: Optional[dict] = None
+    meta: Optional[dict] = None
+    access_grants: Optional[list[dict]] = None
+
+    @field_validator('data', mode='before')
+    @classmethod
+    def sanitize_data(cls, data):
+        return sanitize_note_data(data)
 
 
 class NoteUpdateForm(BaseModel):
-    title: str | None = None
-    data: dict | None = None
-    meta: dict | None = None
-    access_grants: list[dict] | None = None
+    title: Optional[str] = None
+    data: Optional[dict] = None
+    meta: Optional[dict] = None
+    access_grants: Optional[list[dict]] = None
+
+    @field_validator('data', mode='before')
+    @classmethod
+    def sanitize_data(cls, data):
+        return sanitize_note_data(data)
 
 
 class NoteUserResponse(NoteModel):
-    user: UserResponse | None = None
+    user: Optional[UserResponse] = None
 
 
 class NoteItemResponse(BaseModel):
     id: str
     title: str
-    data: dict | None
+    data: Optional[dict]
+    is_pinned: Optional[bool] = False
     updated_at: int
     created_at: int
-    user: UserResponse | None = None
+    user: Optional[UserResponse] = None
 
 
 class NoteListResponse(BaseModel):
@@ -82,20 +137,22 @@ class NoteListResponse(BaseModel):
 
 
 class NoteTable:
-    def _get_access_grants(self, note_id: str, db: Session | None = None) -> list[AccessGrantModel]:
-        return AccessGrants.get_grants_by_resource('note', note_id, db=db)
+    async def _get_access_grants(self, note_id: str, db: Optional[AsyncSession] = None) -> list[AccessGrantModel]:
+        return await AccessGrants.get_grants_by_resource('note', note_id, db=db)
 
-    def _to_note_model(
+    async def _to_note_model(
         self,
         note: Note,
-        access_grants: list[AccessGrantModel] | None = None,
-        db: Session | None = None,
+        access_grants: Optional[list[AccessGrantModel]] = None,
+        db: Optional[AsyncSession] = None,
     ) -> NoteModel:
-        note_data = NoteModel.model_validate(note).model_dump(exclude={'access_grants'})
-        note_data['access_grants'] = (
-            access_grants if access_grants is not None else self._get_access_grants(note_data['id'], db=db)
+        # We exclude access_grants to inject them
+        note_model = NoteModel.model_validate(note)
+        note_model.data = note_model.data or {}
+        note_model.access_grants = (
+            access_grants if access_grants is not None else await self._get_access_grants(note_model.id, db=db)
         )
-        return NoteModel.model_validate(note_data)
+        return note_model
 
     def _has_permission(self, db, query, filter: dict, permission: str = 'read'):
         return AccessGrants.has_permission_filter(
@@ -107,8 +164,10 @@ class NoteTable:
             permission=permission,
         )
 
-    def insert_new_note(self, user_id: str, form_data: NoteForm, db: Session | None = None) -> NoteModel | None:
-        with get_db_context(db) as db:
+    async def insert_new_note(
+        self, user_id: str, form_data: NoteForm, db: Optional[AsyncSession] = None
+    ) -> Optional[NoteModel]:
+        async with get_async_db_context(db) as db:
             note = NoteModel(
                 **{
                     'id': str(uuid.uuid4()),
@@ -120,56 +179,61 @@ class NoteTable:
                 }
             )
 
-            new_note = Note(**note.model_dump(exclude={'access_grants'}))
+            new_note = Note(**note.model_dump(exclude={'access_grants', 'is_pinned'}))
 
             db.add(new_note)
-            db.commit()
-            AccessGrants.set_access_grants('note', note.id, form_data.access_grants, db=db)
-            return self._to_note_model(new_note, db=db)
+            await db.commit()
+            await AccessGrants.set_access_grants('note', note.id, form_data.access_grants, db=db)
+            return await self._to_note_model(new_note, db=db)
 
-    def get_notes(self, skip: int = 0, limit: int = 50, db: Session | None = None) -> list[NoteModel]:
-        with get_db_context(db) as db:
-            query = db.query(Note).order_by(Note.updated_at.desc())
+    async def get_notes(self, skip: int = 0, limit: int = 50, db: Optional[AsyncSession] = None) -> list[NoteModel]:
+        async with get_async_db_context(db) as db:
+            stmt = select(Note).order_by(Note.updated_at.desc())
             if skip is not None:
-                query = query.offset(skip)
+                stmt = stmt.offset(skip)
             if limit is not None:
-                query = query.limit(limit)
-            notes = query.all()
+                stmt = stmt.limit(limit)
+            result = await db.execute(stmt)
+            notes = result.scalars().all()
             note_ids = [note.id for note in notes]
-            grants_map = AccessGrants.get_grants_by_resources('note', note_ids, db=db)
-            return [self._to_note_model(note, access_grants=grants_map.get(note.id, []), db=db) for note in notes]
+            grants_map = await AccessGrants.get_grants_by_resources('note', note_ids, db=db)
+            return [await self._to_note_model(note, access_grants=grants_map.get(note.id, []), db=db) for note in notes]
 
-    def search_notes(
+    async def search_notes(
         self,
         user_id: str,
         filter: dict = {},
         skip: int = 0,
         limit: int = 30,
-        db: Session | None = None,
+        db: Optional[AsyncSession] = None,
     ) -> NoteListResponse:
-        with get_db_context(db) as db:
-            query = db.query(Note, User).outerjoin(User, User.id == Note.user_id)
+        async with get_async_db_context(db) as db:
+            stmt = select(Note, User).outerjoin(User, User.id == Note.user_id)
             if filter:
                 query_key = filter.get('query')
                 if query_key:
-                    # Normalize search by removing hyphens and spaces (e.g., "todo" matches "to-do" and "to do")
-                    normalized_query = query_key.replace('-', '').replace(' ', '')
-                    query = query.filter(
-                        or_(
-                            func.replace(func.replace(Note.title, '-', ''), ' ', '').ilike(f'%{normalized_query}%'),
-                            func.replace(
-                                func.replace(cast(Note.data['content']['md'], Text), '-', ''),
-                                ' ',
-                                '',
-                            ).ilike(f'%{normalized_query}%'),
+                    # Split query into individual words and normalize each
+                    # (strip hyphens so "todo" matches "to-do").
+                    # All words must match somewhere in title OR content (AND semantics).
+                    search_words = query_key.split()
+                    normalized_words = [w.replace('-', '') for w in search_words if w.replace('-', '')]
+                    for word in normalized_words:
+                        stmt = stmt.filter(
+                            or_(
+                                func.replace(func.replace(Note.title, '-', ''), ' ', '').ilike(f'%{word}%'),
+                                func.replace(
+                                    func.replace(Note.data['content']['md'].as_string(), '-', ''),
+                                    ' ',
+                                    '',
+                                ).ilike(f'%{word}%'),
+                            )
                         )
-                    )
 
                 view_option = filter.get('view_option')
                 if view_option == 'created':
-                    query = query.filter(Note.user_id == user_id)
+                    stmt = stmt.filter(Note.user_id == user_id)
                 elif view_option == 'shared':
-                    query = query.filter(Note.user_id != user_id)
+                    stmt = stmt.filter(Note.user_id != user_id)
 
                 # Apply access control filtering
                 if 'permission' in filter:
@@ -177,9 +241,9 @@ class NoteTable:
                 else:
                     permission = 'write'
 
-                query = self._has_permission(
+                stmt = self._has_permission(
                     db,
-                    query,
+                    stmt,
                     filter,
                     permission=permission,
                 )
@@ -189,46 +253,50 @@ class NoteTable:
 
                 if order_by == 'name':
                     if direction == 'asc':
-                        query = query.order_by(Note.title.asc())
+                        stmt = stmt.order_by(Note.title.asc())
                     else:
-                        query = query.order_by(Note.title.desc())
+                        stmt = stmt.order_by(Note.title.desc())
                 elif order_by == 'created_at':
                     if direction == 'asc':
-                        query = query.order_by(Note.created_at.asc())
+                        stmt = stmt.order_by(Note.created_at.asc())
                     else:
-                        query = query.order_by(Note.created_at.desc())
+                        stmt = stmt.order_by(Note.created_at.desc())
                 elif order_by == 'updated_at':
                     if direction == 'asc':
-                        query = query.order_by(Note.updated_at.asc())
+                        stmt = stmt.order_by(Note.updated_at.asc())
                     else:
-                        query = query.order_by(Note.updated_at.desc())
+                        stmt = stmt.order_by(Note.updated_at.desc())
                 else:
-                    query = query.order_by(Note.updated_at.desc())
+                    stmt = stmt.order_by(Note.updated_at.desc())
 
             else:
-                query = query.order_by(Note.updated_at.desc())
+                stmt = stmt.order_by(Note.updated_at.desc())
 
             # Count BEFORE pagination
-            total = query.count()
+            count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
+            total = count_result.scalar()
 
             if skip:
-                query = query.offset(skip)
+                stmt = stmt.offset(skip)
             if limit:
-                query = query.limit(limit)
+                stmt = stmt.limit(limit)
 
-            items = query.all()
+            result = await db.execute(stmt)
+            items = result.all()
 
             note_ids = [note.id for note, _ in items]
-            grants_map = AccessGrants.get_grants_by_resources('note', note_ids, db=db)
+            grants_map = await AccessGrants.get_grants_by_resources('note', note_ids, db=db)
 
             notes = []
             for note, user in items:
                 notes.append(
                     NoteUserResponse(
-                        **self._to_note_model(
-                            note,
-                            access_grants=grants_map.get(note.id, []),
-                            db=db,
+                        **(
+                            await self._to_note_model(
+                                note,
+                                access_grants=grants_map.get(note.id, []),
+                                db=db,
+                            )
                         ).model_dump(),
                         user=(UserResponse(**UserModel.model_validate(user).model_dump()) if user else None),
                     )
@@ -236,67 +304,134 @@ class NoteTable:
 
             return NoteListResponse(items=notes, total=total)
 
-    def get_notes_by_user_id(
+    async def get_notes_by_user_id(
         self,
         user_id: str,
         permission: str = 'read',
         skip: int = 0,
         limit: int = 50,
-        db: Session | None = None,
+        db: Optional[AsyncSession] = None,
     ) -> list[NoteModel]:
-        with get_db_context(db) as db:
-            user_group_ids = [group.id for group in Groups.get_groups_by_member_id(user_id, db=db)]
+        async with get_async_db_context(db) as db:
+            user_groups = await Groups.get_groups_by_member_id(user_id, db=db)
+            user_group_ids = [group.id for group in user_groups]
 
-            query = db.query(Note).order_by(Note.updated_at.desc())
-            query = self._has_permission(db, query, {'user_id': user_id, 'group_ids': user_group_ids}, permission)
+            stmt = select(Note).order_by(Note.updated_at.desc())
+            stmt = self._has_permission(db, stmt, {'user_id': user_id, 'group_ids': user_group_ids}, permission)
 
             if skip is not None:
-                query = query.offset(skip)
+                stmt = stmt.offset(skip)
             if limit is not None:
-                query = query.limit(limit)
+                stmt = stmt.limit(limit)
 
-            notes = query.all()
+            result = await db.execute(stmt)
+            notes = result.scalars().all()
             note_ids = [note.id for note in notes]
-            grants_map = AccessGrants.get_grants_by_resources('note', note_ids, db=db)
-            return [self._to_note_model(note, access_grants=grants_map.get(note.id, []), db=db) for note in notes]
+            grants_map = await AccessGrants.get_grants_by_resources('note', note_ids, db=db)
+            return [await self._to_note_model(note, access_grants=grants_map.get(note.id, []), db=db) for note in notes]
 
-    def get_note_by_id(self, id: str, db: Session | None = None) -> NoteModel | None:
-        with get_db_context(db) as db:
-            note = db.query(Note).filter(Note.id == id).first()
-            return self._to_note_model(note, db=db) if note else None
+    async def get_note_by_id(self, id: str, db: Optional[AsyncSession] = None) -> Optional[NoteModel]:
+        async with get_async_db_context(db) as db:
+            result = await db.execute(select(Note).filter(Note.id == id))
+            note = result.scalars().first()
+            return await self._to_note_model(note, db=db) if note else None
 
-    def update_note_by_id(self, id: str, form_data: NoteUpdateForm, db: Session | None = None) -> NoteModel | None:
-        with get_db_context(db) as db:
-            note = db.query(Note).filter(Note.id == id).first()
+    async def update_note_by_id(
+        self, id: str, form_data: NoteUpdateForm, db: Optional[AsyncSession] = None
+    ) -> Optional[NoteModel]:
+        async with get_async_db_context(db) as db:
+            result = await db.execute(select(Note).filter(Note.id == id))
+            note = result.scalars().first()
             if not note:
                 return None
 
             form_data = form_data.model_dump(exclude_unset=True)
+            note.data = sanitize_note_data(note.data) or {}
 
             if 'title' in form_data:
                 note.title = form_data['title']
             if 'data' in form_data:
-                note.data = {**note.data, **form_data['data']}
+                note.data = {**(note.data or {}), **(form_data['data'] or {})}
             if 'meta' in form_data:
-                note.meta = {**note.meta, **form_data['meta']}
+                note.meta = {**(note.meta or {}), **(form_data['meta'] or {})}
+
+            if not db.is_modified(note) and 'access_grants' not in form_data:
+                return await self._to_note_model(note, db=db)
 
             if 'access_grants' in form_data:
-                AccessGrants.set_access_grants('note', id, form_data['access_grants'], db=db)
+                await AccessGrants.set_access_grants('note', id, form_data['access_grants'], db=db)
 
             note.updated_at = int(time.time_ns())
 
-            db.commit()
-            return self._to_note_model(note, db=db) if note else None
+            await db.commit()
+            return await self._to_note_model(note, db=db) if note else None
 
-    def delete_note_by_id(self, id: str, db: Session | None = None) -> bool:
+    async def toggle_note_pinned_by_id(
+        self, id: str, user_id: str, db: Optional[AsyncSession] = None
+    ) -> Optional[NoteModel]:
         try:
-            with get_db_context(db) as db:
-                AccessGrants.revoke_all_access('note', id, db=db)
-                db.query(Note).filter(Note.id == id).delete()
-                db.commit()
+            async with get_async_db_context(db) as db:
+                result = await db.execute(select(Note).filter(Note.id == id))
+                note = result.scalars().first()
+                if not note:
+                    return None
+
+                # Check if already pinned
+                pin_result = await db.execute(select(PinnedNote).filter_by(user_id=user_id, note_id=id))
+                pinned_note = pin_result.scalars().first()
+
+                if pinned_note:
+                    await db.execute(delete(PinnedNote).filter_by(user_id=user_id, note_id=id))
+                else:
+                    new_pin = PinnedNote(
+                        id=str(uuid.uuid4()), user_id=user_id, note_id=id, created_at=int(time.time_ns())
+                    )
+                    db.add(new_pin)
+
+                await db.commit()
+                return await self._to_note_model(note, db=db)
+        except Exception:
+            return None
+
+    async def get_pinned_notes_by_user_id(
+        self,
+        user_id: str,
+        permission: str = 'read',
+        db: Optional[AsyncSession] = None,
+    ) -> list[NoteModel]:
+        async with get_async_db_context(db) as db:
+            user_groups = await Groups.get_groups_by_member_id(user_id, db=db)
+            user_group_ids = [group.id for group in user_groups]
+
+            stmt = (
+                select(Note)
+                .join(PinnedNote, PinnedNote.note_id == Note.id)
+                .filter(PinnedNote.user_id == user_id)
+                .order_by(PinnedNote.created_at.desc())
+            )
+            stmt = self._has_permission(db, stmt, {'user_id': user_id, 'group_ids': user_group_ids}, permission)
+
+            result = await db.execute(stmt)
+            notes = result.scalars().all()
+            note_ids = [note.id for note in notes]
+            grants_map = await AccessGrants.get_grants_by_resources('note', note_ids, db=db)
+            return [await self._to_note_model(note, access_grants=grants_map.get(note.id, []), db=db) for note in notes]
+
+    async def delete_note_by_id(self, id: str, db: Optional[AsyncSession] = None) -> bool:
+        try:
+            async with get_async_db_context(db) as db:
+                await AccessGrants.revoke_all_access('note', id, db=db)
+                await db.execute(delete(PinnedNote).filter(PinnedNote.note_id == id))
+                await db.execute(delete(Note).filter(Note.id == id))
+                await db.commit()
                 return True
         except Exception:
             return False
+
+    async def get_pinned_note_ids(self, user_id: str, db: Optional[AsyncSession] = None) -> list[str]:
+        async with get_async_db_context(db) as db:
+            result = await db.execute(select(PinnedNote.note_id).filter_by(user_id=user_id))
+            return result.scalars().all()
 
 
 Notes = NoteTable()

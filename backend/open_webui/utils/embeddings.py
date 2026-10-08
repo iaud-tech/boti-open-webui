@@ -1,8 +1,10 @@
 import logging
+import random
 import sys
 
 from fastapi import Request
 from open_webui.env import BYPASS_MODEL_ACCESS_CONTROL, GLOBAL_LOG_LEVEL
+from open_webui.models.models import Models
 from open_webui.models.users import UserModel
 from open_webui.routers.ollama import (
     GenerateEmbedForm,
@@ -66,7 +68,7 @@ async def generate_embeddings(
     # Access filtering
     if not getattr(request.state, 'direct', False):
         if not bypass_filter and user.role == 'user':
-            check_model_access(user, model)
+            await check_model_access(user, model)
 
     # Ollama backend — use /api/embed which supports batch input natively
     if model.get('owned_by') == 'ollama':
