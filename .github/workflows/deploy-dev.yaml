@@ -43,7 +43,7 @@ jobs:
             cat <<EOF > .env
             ENV=dev
             WEBUI_NAME=DEV-Boti
-            DEFAULT_LOCALE=es
+            DEFAULT_LOCALE=es-ES
             OPENAI_API_KEY=${OPENAI_API_KEY}
             WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY_DEV}
             ENABLE_LOGIN_FORM=false
