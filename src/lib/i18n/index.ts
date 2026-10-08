@@ -91,6 +91,8 @@ export const initI18n = (defaultLocale?: string, value: I18nOverrides = {}) => {
 			},
 			fallbackLng: {
 				fr: ['fr-FR'],
+				// BOTI: DEFAULT_LOCALE=es (and the locale cached from it) has no translation file
+				es: ['es-ES'],
 				default: fallbackDefaultLocale
 			},
 			ns: 'translation',
