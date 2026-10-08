@@ -2855,7 +2855,7 @@
 	"settings.personal.general.parameters.repeatLastN.label": "",
 	"settings.personal.general.parameters.repeatPenalty.label": "",
 	"settings.personal.general.parameters.seed.description": "",
-	"settings.personal.general.parameters.seed.label": "सीड्‌",
+	"settings.personal.general.parameters.seed.label": "सीड्\u200c",
 	"settings.personal.general.parameters.stopSequence.description": "",
 	"settings.personal.general.parameters.stopSequence.label": "अनुक्रम रोकें",
 	"settings.personal.general.parameters.streamChatResponse.description": "",

@@ -2051,7 +2051,7 @@
 	"settings.admin.authentication.attributeForMail.description": "",
 	"settings.admin.authentication.attributeForMail.label": "ئېلىخەت خاسلىقى",
 	"settings.admin.authentication.attributeForUsername.description": "",
-	"settings.admin.authentication.attributeForUsername.label": "ئىشلەتكۈچى ئىسمى  خاسلىقى",
+	"settings.admin.authentication.attributeForUsername.label": "ئىشلەتكۈچى ئىسمى\u00a0 خاسلىقى",
 	"settings.admin.authentication.autoRedirect.description": "",
 	"settings.admin.authentication.autoRedirect.label": "",
 	"settings.admin.authentication.blockedGroups.description": "",
